@@ -163,7 +163,7 @@ const LinkForm = ({ onLinkAdded, backendUrl }) => {
           {/* Title Input */}
           <div className="form-group">
             <label className="form-label">
-              <FileText size={14} /> Tiêu đề tìm kiếm
+              <FileText size={14} /> Tiêu đề tìm kiếm <span className="text-danger">*</span>
             </label>
             <input
               type="text"
@@ -172,13 +172,14 @@ const LinkForm = ({ onLinkAdded, backendUrl }) => {
               placeholder="Nhập tiêu đề"
               disabled={loading}
               className="input-field"
+              required
             />
           </div>
 
           {/* Description / Content Input */}
           <div className="form-group">
             <label className="form-label">
-              Mô tả
+              <FileText size={14} /> Mô tả
             </label>
             <textarea
               value={content}
@@ -226,7 +227,7 @@ const LinkForm = ({ onLinkAdded, backendUrl }) => {
         <form onSubmit={handleAiSubmit} className="form-container">
           <div className="form-group">
             <label className="form-label">
-              Nội dung văn bản thô (AI phân tích)
+              <FileText size={14} /> Nội dung văn bản thô (AI phân tích)
             </label>
             <textarea
               value={rawText}
