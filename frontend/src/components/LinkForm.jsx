@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { Link, FileText, Calendar, Sparkles, Plus } from 'lucide-react';
 import confetti from 'canvas-confetti';
 
-const LinkForm = ({ onLinkAdded, backendUrl }) => {
+const LinkForm = ({ onLinkAdded, backendUrl, token }) => {
   const [activeTab, setActiveTab] = useState('manual'); // 'manual' or 'ai'
 
   // Manual Form States
@@ -42,6 +42,7 @@ const LinkForm = ({ onLinkAdded, backendUrl }) => {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
         },
         body: JSON.stringify({
           url,
@@ -88,6 +89,7 @@ const LinkForm = ({ onLinkAdded, backendUrl }) => {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
         },
         body: JSON.stringify({ rawText }),
       });

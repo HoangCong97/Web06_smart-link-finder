@@ -1,9 +1,13 @@
 import React, { useState, useEffect } from 'react';
-import { Sparkles, Database, RefreshCw, AlertTriangle, HelpCircle } from 'lucide-react';
+import { Sparkles, Database, RefreshCw, AlertTriangle, HelpCircle, LogIn, LogOut, Users, Plus } from 'lucide-react';
 import LinkForm from './components/LinkForm';
 import SearchBar from './components/SearchBar';
 import LinkCard from './components/LinkCard';
 import Loader from './components/Loader';
+import LoginModal from './components/LoginModal';
+import ManagerManagementModal from './components/ManagerManagementModal';
+import EditLinkModal from './components/EditLinkModal';
+import LinkDetailModal from './components/LinkDetailModal';
 import './App.css';
 
 const BACKEND_URL = import.meta.env.VITE_BACKEND_URL || 'http://localhost:5000';
@@ -16,6 +20,18 @@ function App() {
   const [isSearching, setIsSearching] = useState(false);
   const [error, setError] = useState('');
   const [connectionWarning, setConnectionWarning] = useState(false);
+
+  // Authentication & Modal States
+  const [user, setUser] = useState(() => {
+    const saved = localStorage.getItem('user');
+    return saved ? JSON.parse(saved) : null;
+  });
+  const [token, setToken] = useState(() => localStorage.getItem('token') || null);
+  const [isLoginModalOpen, setIsLoginModalOpen] = useState(false);
+  const [isManagerModalOpen, setIsManagerModalOpen] = useState(false);
+  const [editingLink, setEditingLink] = useState(null);
+  const [showLinkForm, setShowLinkForm] = useState(false);
+  const [viewingLink, setViewingLink] = useState(null);
 
   // Fetch all links on load
   const fetchLinks = async () => {
@@ -90,6 +106,9 @@ function App() {
     try {
       const response = await fetch(`${BACKEND_URL}/api/links/${id}`, {
         method: 'DELETE',
+        headers: {
+          'Authorization': `Bearer ${token}`
+        }
       });
 
       if (!response.ok) {
@@ -108,19 +127,97 @@ function App() {
     }
   };
 
+  // Handle login success
+  const handleLoginSuccess = (userData, userToken) => {
+    setUser(userData);
+    setToken(userToken);
+  };
+
+  // Handle logout
+  const handleLogout = () => {
+    if (window.confirm('Bạn có chắc chắn muốn đăng xuất khỏi tài khoản không?')) {
+      localStorage.removeItem('token');
+      localStorage.removeItem('user');
+      setUser(null);
+      setToken(null);
+      setShowLinkForm(false);
+    }
+  };
+
+  // Handle link updated
+  const handleLinkUpdated = (updatedLink) => {
+    setLinks((prev) => prev.map((item) => item.id === updatedLink.id ? updatedLink : item));
+    if (searchResults) {
+      setSearchResults((prev) => prev.map((item) => item.id === updatedLink.id ? updatedLink : item));
+    }
+  };
+
   const activeLinksList = searchResults !== null ? searchResults : links;
   const isSearchingActive = searchResults !== null;
 
+  const isFormVisible = user && showLinkForm;
+
   return (
-    <div className="app-container">
-      {/* Premium Header */}
-      <header className="app-header">
-        <h1 className="app-title text-gradient">Smart Link Finder</h1>
+    <>
+      {/* Full width Premium Header Bar */}
+      <header className="header-bar-full">
+        <div className="header-inner">
+          <h1 className="app-title text-gradient" style={{ textAlign: 'left', margin: 0, fontSize: '1.5rem', fontWeight: 800 }}>Smart Link Finder</h1>
+
+          <div className="header-actions">
+            {user ? (
+              <div className="header-user-group">
+                <span className="user-name-text">Xin chào, <strong>{user.username}</strong></span>
+                <span className={`user-badge ${user.role}`}>
+                  {user.role}
+                </span>
+                {user.role === 'admin' && (
+                  <button
+                    onClick={() => setIsManagerModalOpen(true)}
+                    className="nav-btn btn-sm"
+                    title="Quản lý Manager"
+                  >
+                    <Users size={14} />
+                    <span className="btn-text">Manager</span>
+                  </button>
+                )}
+                <button
+                  onClick={() => setShowLinkForm((prev) => !prev)}
+                  className={`nav-btn btn-sm ${showLinkForm ? 'active' : ''}`}
+                  style={showLinkForm ? { borderColor: 'var(--primary)', color: 'var(--primary)', background: '#fff' } : {}}
+                  title="Thêm liên kết mới"
+                >
+                  <Plus size={14} />
+                  <span className="btn-text">Thêm link</span>
+                </button>
+                <button
+                  onClick={handleLogout}
+                  className="nav-btn btn-sm btn-logout"
+                  title="Đăng xuất"
+                >
+                  <LogOut size={14} />
+                  <span className="btn-text">Đăng xuất</span>
+                </button>
+              </div>
+            ) : (
+              <button
+                onClick={() => setIsLoginModalOpen(true)}
+                className="nav-btn btn-sm"
+                title="Đăng nhập"
+              >
+                <LogIn size={14} />
+                <span>Đăng nhập</span>
+              </button>
+            )}
+          </div>
+        </div>
       </header>
+
+      <div className="app-container" style={{ paddingTop: '1.5rem' }}>
 
       {/* Connection warning banner if server is offline */}
       {connectionWarning && (
-        <div className="warning-banner-large animated-fade-in">
+        <div className="warning-banner-large animated-fade-in" style={{ marginBottom: '2rem' }}>
           <div className="warning-banner-left">
             <AlertTriangle size={20} className="icon-bounce" />
             <div className="warning-banner-text-group">
@@ -137,21 +234,29 @@ function App() {
         </div>
       )}
 
-      {/* Main Layout Grid */}
-      <div className="layout-grid">
-        {/* Left Side: Create Form */}
-        <div className="sidebar-column">
-          <LinkForm onLinkAdded={handleLinkAdded} backendUrl={BACKEND_URL} />
-        </div>
+      {/* Main Layout Grid (Dynamic Columns: 380px 1fr if form shown, else 1fr) */}
+      <div className={isFormVisible ? "layout-grid" : "layout-grid-full"}>
+        {/* Left Side: Create Form (only if logged in and toggled showLinkForm) */}
+        {isFormVisible && (
+          <div className="sidebar-column">
+            <LinkForm
+              onLinkAdded={handleLinkAdded}
+              backendUrl={BACKEND_URL}
+              token={token}
+            />
+          </div>
+        )}
 
         {/* Right Side: Search & List */}
         <div className="main-column">
-          {/* Search controls */}
-          <SearchBar
-            onSearch={handleSearch}
-            onClear={handleClearSearch}
-            isLoading={isSearching}
-          />
+          {/* Search controls (Fixed/Sticky) */}
+          <div className="sticky-search-container">
+            <SearchBar
+              onSearch={handleSearch}
+              onClear={handleClearSearch}
+              isLoading={isSearching}
+            />
+          </div>
 
           {/* Heading dynamic block */}
           <div className="column-header-row">
@@ -164,7 +269,6 @@ function App() {
                 </>
               ) : (
                 <>
-                  <Database size={20} className="icon-purple" />
                   <span>Tất cả liên kết đã lưu ({links.length})</span>
                 </>
               )}
@@ -211,7 +315,9 @@ function App() {
               <p className="empty-state-desc">
                 {isSearchingActive
                   ? 'Hãy thử hạ thấp ngưỡng tương đồng (threshold) trong phần tinh chỉnh hoặc tìm kiếm với từ khóa khác.'
-                  : 'Hãy nhập đường dẫn URL và tiêu đề ở khung bên trái hoặc sử dụng AI Phân tích để thêm liên kết đầu tiên.'
+                  : user
+                    ? 'Hãy click nút "Thêm liên kết" phía trên để mở khung thêm liên kết đầu tiên.'
+                    : 'Đăng nhập với quyền Admin hoặc Manager để thêm liên kết mới.'
                 }
               </p>
             </div>
@@ -222,6 +328,9 @@ function App() {
                   <LinkCard
                     link={link}
                     onDelete={handleDeleteLink}
+                    onEdit={(l) => setEditingLink(l)}
+                    onClickCard={(l) => setViewingLink(l)}
+                    user={user}
                     isSearchResult={isSearchingActive}
                   />
                 </div>
@@ -230,7 +339,38 @@ function App() {
           )}
         </div>
       </div>
-    </div>
+
+      {/* Auth & Admin Modals */}
+      <LoginModal
+        isOpen={isLoginModalOpen}
+        onClose={() => setIsLoginModalOpen(false)}
+        onLoginSuccess={handleLoginSuccess}
+        backendUrl={BACKEND_URL}
+      />
+
+      <ManagerManagementModal
+        isOpen={isManagerModalOpen}
+        onClose={() => setIsManagerModalOpen(false)}
+        backendUrl={BACKEND_URL}
+        token={token}
+      />
+
+      <EditLinkModal
+        isOpen={editingLink !== null}
+        onClose={() => setEditingLink(null)}
+        link={editingLink}
+        onLinkUpdated={handleLinkUpdated}
+        backendUrl={BACKEND_URL}
+        token={token}
+      />
+
+      <LinkDetailModal
+        isOpen={viewingLink !== null}
+        onClose={() => setViewingLink(null)}
+        link={viewingLink}
+      />
+      </div>
+    </>
   );
 }
 

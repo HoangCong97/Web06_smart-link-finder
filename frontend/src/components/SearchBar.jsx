@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Search, SlidersHorizontal, Sparkles } from 'lucide-react';
+import { Search, SlidersHorizontal, Sparkles, X } from 'lucide-react';
 
 const SearchBar = ({ onSearch, onClear, isLoading }) => {
   const [query, setQuery] = useState('');
@@ -27,10 +27,6 @@ const SearchBar = ({ onSearch, onClear, isLoading }) => {
       <form onSubmit={handleSubmit} className="search-form">
         {/* Main Search Row */}
         <div className="search-row">
-          <div className="search-icon-left">
-            <Search size={20} />
-          </div>
-
           <input
             type="text"
             value={query}
@@ -41,6 +37,17 @@ const SearchBar = ({ onSearch, onClear, isLoading }) => {
           />
 
           <div className="search-actions-right">
+            {query && (
+              <button
+                type="button"
+                onClick={handleClear}
+                className="search-clear-btn"
+                title="Xóa nội dung tìm kiếm"
+              >
+                <X size={16} />
+              </button>
+            )}
+
             <button
               type="button"
               onClick={() => setShowFilters(!showFilters)}
@@ -112,36 +119,27 @@ const SearchBar = ({ onSearch, onClear, isLoading }) => {
         )}
 
         {/* Quick Search Tag Suggestions */}
-        <div className="quick-tags-container">
-          <span className="quick-tags-title">Gợi ý nhanh:</span>
-          <div className="tags-list">
-            {quickSearchTags.map((tag, idx) => (
-              <button
-                key={idx}
-                type="button"
-                onClick={() => {
-                  setQuery(tag);
-                  onSearch(tag, threshold, limit);
-                }}
-                disabled={isLoading}
-                className="tag-btn"
-              >
-                {tag}
-              </button>
-            ))}
-
-            {query && (
-              <button
-                key="clear"
-                type="button"
-                onClick={handleClear}
-                className="tag-btn-clear"
-              >
-                Xóa bộ lọc
-              </button>
-            )}
+        {quickSearchTags && quickSearchTags.length > 0 && (
+          <div className="quick-tags-container">
+            <span className="quick-tags-title">Gợi ý nhanh:</span>
+            <div className="tags-list">
+              {quickSearchTags.map((tag, idx) => (
+                <button
+                  key={idx}
+                  type="button"
+                  onClick={() => {
+                    setQuery(tag);
+                    onSearch(tag, threshold, limit);
+                  }}
+                  disabled={isLoading}
+                  className="tag-btn"
+                >
+                  {tag}
+                </button>
+              ))}
+            </div>
           </div>
-        </div>
+        )}
       </form>
     </div>
   );

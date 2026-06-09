@@ -37,3 +37,12 @@ as $$
   order by fl_links.embedding <=> query_embedding asc
   limit match_count;
 $$;
+
+-- Tạo bảng fl_users lưu thông tin tài khoản đăng nhập và phân quyền (admin và manager)
+create table public.fl_users (
+    id bigint generated always as identity primary key, -- ID tự động tăng
+    username text not null unique, -- Tên đăng nhập (duy nhất)
+    password text not null, -- Mật khẩu đã mã hóa (bcrypt)
+    role text not null check (role in ('admin', 'manager')), -- Quyền (chỉ nhận admin hoặc manager)
+    created_at timestamp with time zone default timezone ('utc'::text, now()) not null
+);
