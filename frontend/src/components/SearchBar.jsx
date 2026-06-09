@@ -3,8 +3,8 @@ import { Search, SlidersHorizontal, Sparkles, X } from 'lucide-react';
 
 const SearchBar = ({ onSearch, onClear, isLoading }) => {
   const [query, setQuery] = useState('');
-  const [threshold, setThreshold] = useState(0.65);
-  const [limit, setLimit] = useState(6);
+  const [threshold, setThreshold] = useState(0.6);
+  const [limit, setLimit] = useState(9);
   const [showFilters, setShowFilters] = useState(false);
 
   const handleSubmit = (e) => {

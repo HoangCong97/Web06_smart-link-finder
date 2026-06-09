@@ -1,5 +1,5 @@
 import React from 'react';
-import { X, ExternalLink, Calendar, Clock, FileText } from 'lucide-react';
+import { X, ExternalLink, Calendar, Clock, FileText, Globe } from 'lucide-react';
 
 const LinkDetailModal = ({ isOpen, onClose, link }) => {
   if (!isOpen || !link) return null;
@@ -19,7 +19,7 @@ const LinkDetailModal = ({ isOpen, onClose, link }) => {
 
   // Format created date
   const formatCreatedDate = (dateStr) => {
-    if (!dateStr) return '';
+    if (!dateStr) return 'Không rõ';
     try {
       const d = new Date(dateStr);
       return d.toLocaleDateString('vi-VN', {
@@ -49,13 +49,42 @@ const LinkDetailModal = ({ isOpen, onClose, link }) => {
     }
   };
 
+  // Determine deadline status
+  const getDeadlineStatus = (dateStr) => {
+    if (!dateStr) return null;
+    try {
+      const today = new Date();
+      today.setHours(0, 0, 0, 0);
+      const deadlineDate = new Date(dateStr);
+      deadlineDate.setHours(0, 0, 0, 0);
+
+      const diffTime = deadlineDate - today;
+      const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+
+      if (diffDays < 0) {
+        return { text: `Quá hạn ${Math.abs(diffDays)} ngày`, type: 'expired' };
+      }
+      if (diffDays === 0) {
+        return { text: 'Hạn chót hôm nay!', type: 'critical' };
+      }
+      if (diffDays <= 3) {
+        return { text: `Còn ${diffDays} ngày`, type: 'urgent' };
+      }
+      return { text: `Còn ${diffDays} ngày`, type: 'normal' };
+    } catch {
+      return null;
+    }
+  };
+
+  const deadlineStatus = getDeadlineStatus(deadline);
+
   return (
     <div className="modal-backdrop" onClick={onClose}>
       <div className="modal-content glass-panel border-glow modal-detail" onClick={(e) => e.stopPropagation()}>
         {/* Modal Header */}
         <div className="modal-header">
-          <h3 className="modal-title text-gradient flex-center gap-2">
-            <span>Chi tiết</span>
+          <h3 className="modal-title text-gradient flex-align-center gap-2">
+            <span>Chi tiết liên kết</span>
           </h3>
           <button className="modal-close-btn" onClick={onClose} aria-label="Close modal">
             <X size={18} />
@@ -64,34 +93,49 @@ const LinkDetailModal = ({ isOpen, onClose, link }) => {
 
         {/* Modal Body */}
         <div className="modal-body-detail">
+          {/* Title & Domain */}
+          <div className="detail-header-section mb-4">
+            <h2 className="detail-title text-gradient-title">{title || 'Không có tiêu đề'}</h2>
+          </div>
+
           {/* Description */}
           <div className="detail-section mb-4">
-            <h5 className="detail-section-title flex-center gap-1.5">
-              <FileText size={15} />
-              <span>Mô tả nội dung</span>
-            </h5>
             <p className="detail-desc-content">
               {content ? content : 'Không có mô tả cho liên kết này.'}
             </p>
           </div>
 
-          {/* Date Info */}
+          {/* Date Info Grid */}
           <div className="detail-time-grid mb-5">
             <div className="detail-time-item">
-              <span className="detail-time-label flex-center gap-1">
+              <span className="detail-time-label flex-align-center gap-1">
+                <Clock size={13} />
+                <span>Ngày tạo:</span>
+              </span>
+              <span className="detail-time-value">
+                {formatCreatedDate(created_at)}
+              </span>
+            </div>
+
+            <div className="detail-time-item">
+              <span className="detail-time-label flex-align-center gap-1">
                 <Calendar size={13} />
                 <span>Hạn chót (Deadline):</span>
               </span>
-              <span className={`detail-time-value ${deadline ? 'has-deadline' : ''}`}>
-                {formatDeadlineDate(deadline)}
-              </span>
+              <div className="detail-deadline-box">
+                <span className={`detail-time-value ${deadline ? 'has-deadline' : ''} ${deadlineStatus ? deadlineStatus.type : ''}`}>
+                  {formatDeadlineDate(deadline)}
+                </span>
+              </div>
             </div>
           </div>
+
+          {/* Action Button */}
           <a
             href={url}
             target="_blank"
             rel="noopener noreferrer"
-            className="btn-primary flex-center gap-2"
+            className="btn-primary flex-center gap-2 detail-btn-visit"
             style={{ textDecoration: 'none' }}
           >
             <span>Truy cập liên kết</span>
@@ -104,3 +148,4 @@ const LinkDetailModal = ({ isOpen, onClose, link }) => {
 };
 
 export default LinkDetailModal;
+
