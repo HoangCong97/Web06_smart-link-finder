@@ -1254,7 +1254,7 @@ h4 {
 .modal-content {
   width: 100%;
   max-width: 500px;
-  background: var(--bg-card);
+  background: #ffffff; /* Thay var(--bg-card) bằng màu trắng đặc để hoàn toàn không bị nhìn xuyên qua */
   border-radius: 16px;
   box-shadow: 0 20px 40px -15px rgba(0, 0, 0, 0.15), 0 1px 10px rgba(0, 0, 0, 0.05);
   animation: slideUp 0.3s cubic-bezier(0.16, 1, 0.3, 1) forwards;
