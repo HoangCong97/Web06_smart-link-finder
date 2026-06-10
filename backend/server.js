@@ -492,7 +492,7 @@ Text to analyze:
   }
 });
 
-// 3. Search links semantically using vector similarity
+// 3. Search links semantically using vector similarity merged with FTS
 app.post('/api/search', async (req, res) => {
   const { query, threshold, limit } = req.body;
 
@@ -504,19 +504,56 @@ app.post('/api/search', async (req, res) => {
   const matchLimit = limit !== undefined ? parseInt(limit, 10) : 10;
 
   try {
+    // 1. Tìm kiếm Full-Text Search (Khớp từ khóa trực tiếp)
+    // Loại bỏ các ký tự đặc biệt có thể ảnh hưởng đến parser .or() của Supabase
+    const safeQuery = query.replace(/[(),.]/g, ' ').trim();
+    let ftsResults = [];
+
+    if (safeQuery) {
+      console.log(`Executing keyword FTS for query: "${safeQuery}"`);
+      const { data: ftsData, error: ftsError } = await supabase
+        .from('fl_links')
+        .select('id, url, title, content, deadline, created_at')
+        .or(`title.ilike.%${safeQuery}%,content.ilike.%${safeQuery}%,url.ilike.%${safeQuery}%`)
+        .limit(matchLimit);
+
+      if (ftsError) {
+        console.error('FTS query error:', ftsError);
+      } else if (ftsData) {
+        ftsResults = ftsData.map(item => ({
+          ...item,
+          similarity: 0.99 // Gán 99% khớp cho kết quả FTS
+        }));
+      }
+    }
+
+    // 2. Tìm kiếm Vector Semantic Search (Theo ngữ nghĩa AI)
     console.log(`Generating embedding for search query: "${query}"`);
     const queryEmbedding = await getEmbedding(query);
     console.log(`Query embedding generated. Size: ${queryEmbedding.length}. Calling match_links...`);
 
-    // Call Supabase match_links function
-    const { data, error } = await supabase.rpc('match_links', {
+    const { data: vectorData, error: vectorError } = await supabase.rpc('match_links', {
       query_embedding: queryEmbedding,
       match_threshold: matchThreshold,
       match_count: matchLimit
     });
 
-    if (error) throw error;
-    res.json(data || []);
+    if (vectorError) throw vectorError;
+    const vectorResults = vectorData || [];
+
+    // 3. Gộp kết quả và Loại bỏ trùng lặp (FTS ưu tiên 1, Vector ưu tiên 2)
+    const combinedResults = [...ftsResults];
+    const seenIds = new Set(ftsResults.map(item => item.id));
+
+    for (const item of vectorResults) {
+      if (!seenIds.has(item.id)) {
+        combinedResults.push(item);
+        seenIds.add(item.id);
+      }
+    }
+
+    // Trả về danh sách đã cắt theo giới hạn matchLimit
+    res.json(combinedResults.slice(0, matchLimit));
   } catch (error) {
     console.error('Error searching links:', error);
     res.status(500).json({ error: error.message || 'Internal server error' });
