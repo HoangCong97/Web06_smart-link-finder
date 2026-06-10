@@ -104,6 +104,46 @@ async function seedAdminUser() {
 // Chạy seed admin khi khởi động
 seedAdminUser();
 
+// Hàm ghi log hoạt động hệ thống
+async function logAction(actionType, username, details) {
+  try {
+    const { error } = await supabase
+      .from('fl_logs')
+      .insert([
+        {
+          action_type: actionType,
+          username: username || 'Guest',
+          details: details || ''
+        }
+      ]);
+    if (error) {
+      if (error.code === 'PGRST205' || error.message.includes('fl_logs') || error.message.includes('relation "public.fl_logs" does not exist')) {
+        console.warn('WARNING: Bảng "fl_logs" chưa tồn tại trong database. Vui lòng chạy nội dung file backend/init.db.sql trong SQL Editor của Supabase để tạo bảng fl_logs.');
+      } else {
+        console.error('Lỗi khi ghi log hoạt động:', error.message);
+      }
+    }
+  } catch (err) {
+    console.error('Lỗi khi ghi log hoạt động:', err);
+  }
+}
+
+// Kiểm tra bảng fl_logs khi khởi động
+async function checkLogsTable() {
+  try {
+    const { error } = await supabase
+      .from('fl_logs')
+      .select('id')
+      .limit(1);
+    if (error && (error.code === 'PGRST205' || error.message.includes('fl_logs') || error.message.includes('relation "public.fl_logs" does not exist'))) {
+      console.warn('WARNING: Bảng "fl_logs" chưa tồn tại trong database. Hãy chạy lệnh SQL trong backend/init.db.sql để tạo bảng.');
+    }
+  } catch (err) {
+    // Bỏ qua
+  }
+}
+checkLogsTable();
+
 // Initialize Gemini Client
 const geminiApiKey = process.env.GEMINI_API_KEY;
 if (!geminiApiKey) {
@@ -239,6 +279,7 @@ app.post('/api/users', authenticateJWT, requireRole(['admin']), async (req, res)
       .select('id, username, role, created_at');
 
     if (error) throw error;
+    await logAction('CREATE_USER', req.user.username, `Tạo tài khoản manager mới: "${username}"`);
     res.status(201).json(data[0]);
   } catch (err) {
     console.error('Lỗi tạo manager:', err);
@@ -298,6 +339,7 @@ app.put('/api/users/:id', authenticateJWT, requireRole(['admin']), async (req, r
       .select('id, username, role, created_at');
 
     if (error) throw error;
+    await logAction('UPDATE_USER', req.user.username, `Cập nhật thông tin manager ID: ${id}, Username mới: "${username || existing.username}"`);
     res.json(data[0]);
   } catch (err) {
     console.error('Lỗi cập nhật manager:', err);
@@ -331,6 +373,7 @@ app.delete('/api/users/:id', authenticateJWT, requireRole(['admin']), async (req
       .eq('id', id);
 
     if (error) throw error;
+    await logAction('DELETE_USER', req.user.username, `Xóa tài khoản manager ID: ${id}, Username: "${existing.username}"`);
     res.json({ success: true, message: 'Đã xóa manager thành công' });
   } catch (err) {
     console.error('Lỗi xóa manager:', err);
@@ -367,6 +410,7 @@ app.post('/api/links', authenticateJWT, async (req, res) => {
 
   try {
     console.log(`Generating embedding for title: "${targetTitle}"`);
+    await logAction('GEMINI_EMBEDDING', req.user.username, `Tạo embedding cho tiêu đề: "${targetTitle}"`);
     const embedding = await getEmbedding(targetTitle);
     console.log(`Embedding generated successfully. Size: ${embedding.length}`);
 
@@ -385,6 +429,7 @@ app.post('/api/links', authenticateJWT, async (req, res) => {
       .select('id, url, title, content, deadline, click_count, created_at');
 
     if (error) throw error;
+    await logAction('CREATE_LINK', req.user.username, `Thêm liên kết mới: "${targetTitle}" (${url})`);
     res.status(201).json(data[0]);
   } catch (error) {
     console.error('Error creating link:', error);
@@ -409,6 +454,7 @@ app.post('/api/links/analyze', authenticateJWT, async (req, res) => {
     const endpoint = cleanBaseUrl.includes('/v1') ? `${cleanBaseUrl}/chat/completions` : `${cleanBaseUrl}/v1/chat/completions`;
 
     console.log(`Analyzing raw text with DeepSeek (${deepseekModel})...`);
+    await logAction('DEEPSEEK_ANALYZE', req.user.username, `Phân tích văn bản thô: "${rawText.substring(0, 80)}${rawText.length > 80 ? '...' : ''}"`);
 
     const currentDate = new Date().toISOString().split('T')[0]; // YYYY-MM-DD
     const prompt = `Analyze the following text and extract information to populate a link entry.
@@ -467,6 +513,7 @@ Text to analyze:
 
     const titleToEmbed = parsed.title || parsed.url;
     console.log(`Generating embedding for extracted title: "${titleToEmbed}"`);
+    await logAction('GEMINI_EMBEDDING', req.user.username, `Tạo embedding cho tiêu đề trích xuất: "${titleToEmbed}"`);
     const embedding = await getEmbedding(titleToEmbed);
     console.log(`Embedding generated successfully. Size: ${embedding.length}`);
 
@@ -485,6 +532,7 @@ Text to analyze:
       .select('id, url, title, content, deadline, click_count, created_at');
 
     if (error) throw error;
+    await logAction('CREATE_LINK', req.user.username, `Thêm liên kết trích xuất từ AI: "${titleToEmbed}" (${parsed.url})`);
     res.status(201).json(data[0]);
   } catch (error) {
     console.error('Error analyzing and creating link:', error);
@@ -571,6 +619,7 @@ app.delete('/api/links/:id', authenticateJWT, async (req, res) => {
       .eq('id', id);
 
     if (error) throw error;
+    await logAction('DELETE_LINK', req.user.username, `Xóa liên kết ID: ${id}`);
     res.json({ success: true, message: 'Link deleted successfully' });
   } catch (error) {
     console.error('Error deleting link:', error);
@@ -603,6 +652,7 @@ app.put('/api/links/:id', authenticateJWT, async (req, res) => {
     if (title !== undefined && title !== existing.title) {
       updateData.title = title;
       console.log(`Title changed. Generating new embedding for: "${title}"`);
+      await logAction('GEMINI_EMBEDDING', req.user.username, `Tạo embedding mới cho tiêu đề cập nhật: "${title}"`);
       updateData.embedding = await getEmbedding(title);
     }
 
@@ -613,6 +663,7 @@ app.put('/api/links/:id', authenticateJWT, async (req, res) => {
       .select('id, url, title, content, deadline, click_count, created_at');
 
     if (error) throw error;
+    await logAction('UPDATE_LINK', req.user.username, `Cập nhật liên kết ID: ${id}. Tiêu đề: "${title || existing.title}"`);
     res.json(data[0]);
   } catch (error) {
     console.error('Error updating link:', error);
@@ -644,10 +695,187 @@ app.post('/api/links/:id/click', async (req, res) => {
       .select('id, click_count');
 
     if (updateError) throw updateError;
+    await logAction('CLICK_LINK', 'Guest', `Click truy cập liên kết ID: ${id}. Tổng lượt click: ${newClickCount}`);
     res.json({ success: true, click_count: newClickCount });
   } catch (error) {
     console.error('Error incrementing click count:', error);
     res.status(500).json({ error: error.message || 'Internal server error' });
+  }
+});
+
+// Admin API: Kiểm tra trạng thái kết nối & lấy số lượng request AI
+app.get('/api/admin/health-check', authenticateJWT, requireRole(['admin']), async (req, res) => {
+  // Check Database Connection
+  let dbStatus = 'disconnected';
+  let dbError = null;
+  try {
+    const { error } = await supabase.from('fl_users').select('id').limit(1);
+    if (error) throw error;
+    dbStatus = 'connected';
+  } catch (err) {
+    dbError = err.message;
+  }
+
+  // Check Gemini Connection & Latency
+  let geminiStatus = 'disconnected';
+  let geminiError = null;
+  let geminiLatency = null;
+  if (geminiApiKey) {
+    try {
+      const start = Date.now();
+      // Test embedding with a lightweight content and timeout
+      const embedPromise = genAI.getGenerativeModel({ model: geminiModel }).embedContent({
+        content: { parts: [{ text: 'ping' }] }
+      });
+      const timeoutPromise = new Promise((_, reject) => setTimeout(() => reject(new Error('Yêu cầu hết hạn (Timeout)')), 3000));
+      await Promise.race([embedPromise, timeoutPromise]);
+      geminiLatency = Date.now() - start;
+      geminiStatus = 'connected';
+    } catch (err) {
+      geminiError = err.message;
+    }
+  } else {
+    geminiError = 'Chưa cấu hình API Key';
+  }
+
+  // Check DeepSeek Connection & Latency
+  let deepseekStatus = 'disconnected';
+  let deepseekError = null;
+  let deepseekLatency = null;
+  if (deepseekApiKey) {
+    try {
+      const start = Date.now();
+      const cleanBaseUrl = deepseekBaseUrl.endsWith('/') ? deepseekBaseUrl.slice(0, -1) : deepseekBaseUrl;
+      const endpoint = cleanBaseUrl.includes('/v1') ? `${cleanBaseUrl}/chat/completions` : `${cleanBaseUrl}/v1/chat/completions`;
+      
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 3000);
+
+      const response = await fetch(endpoint, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${deepseekApiKey}`
+        },
+        body: JSON.stringify({
+          model: deepseekModel,
+          messages: [{ role: 'user', content: 'ping' }],
+          max_tokens: 1
+        }),
+        signal: controller.signal
+      });
+      clearTimeout(timeoutId);
+
+      if (response.ok) {
+        deepseekLatency = Date.now() - start;
+        deepseekStatus = 'connected';
+      } else {
+        deepseekError = `HTTP ${response.status}`;
+      }
+    } catch (err) {
+      deepseekError = err.message;
+    }
+  } else {
+    deepseekError = 'Chưa cấu hình API Key';
+  }
+
+  // Lấy số lượng request của Gemini và DeepSeek từ log (theo ngày & tháng)
+  let geminiRequests = { day: 0, month: 0 };
+  let deepseekRequests = { day: 0, month: 0 };
+  try {
+    // Start of day in server local time
+    const localToday = new Date();
+    localToday.setHours(0, 0, 0, 0);
+    const startOfDayISO = localToday.toISOString();
+
+    // Start of month in server local time
+    const localMonth = new Date();
+    localMonth.setDate(1);
+    localMonth.setHours(0, 0, 0, 0);
+    const startOfMonthISO = localMonth.toISOString();
+
+    // Gemini Day Count
+    const { count: geminiDayCount, error: gdErr } = await supabase
+      .from('fl_logs')
+      .select('*', { count: 'exact', head: true })
+      .eq('action_type', 'GEMINI_EMBEDDING')
+      .gte('created_at', startOfDayISO);
+
+    // Gemini Month Count
+    const { count: geminiMonthCount, error: gmErr } = await supabase
+      .from('fl_logs')
+      .select('*', { count: 'exact', head: true })
+      .eq('action_type', 'GEMINI_EMBEDDING')
+      .gte('created_at', startOfMonthISO);
+
+    if (!gdErr && !gmErr) {
+      geminiRequests = {
+        day: geminiDayCount || 0,
+        month: geminiMonthCount || 0
+      };
+    }
+
+    // DeepSeek Day Count
+    const { count: deepseekDayCount, error: ddErr } = await supabase
+      .from('fl_logs')
+      .select('*', { count: 'exact', head: true })
+      .eq('action_type', 'DEEPSEEK_ANALYZE')
+      .gte('created_at', startOfDayISO);
+
+    // DeepSeek Month Count
+    const { count: deepseekMonthCount, error: dmErr } = await supabase
+      .from('fl_logs')
+      .select('*', { count: 'exact', head: true })
+      .eq('action_type', 'DEEPSEEK_ANALYZE')
+      .gte('created_at', startOfMonthISO);
+
+    if (!ddErr && !dmErr) {
+      deepseekRequests = {
+        day: deepseekDayCount || 0,
+        month: deepseekMonthCount || 0
+      };
+    }
+  } catch (err) {
+    console.error('Error fetching AI request counts:', err);
+  }
+
+  res.json({
+    database: { status: dbStatus, error: dbError },
+    gemini: { status: geminiStatus, latency: geminiLatency, error: geminiError, requestCount: geminiRequests },
+    deepseek: { status: deepseekStatus, latency: deepseekLatency, error: deepseekError, requestCount: deepseekRequests }
+  });
+});
+
+// Admin API: Xem và lọc logs
+app.get('/api/admin/logs', authenticateJWT, requireRole(['admin']), async (req, res) => {
+  const { actionType, search, limit = 50, offset = 0 } = req.query;
+
+  try {
+    let queryBuilder = supabase
+      .from('fl_logs')
+      .select('*', { count: 'exact' });
+
+    if (actionType) {
+      queryBuilder = queryBuilder.eq('action_type', actionType);
+    }
+
+    if (search) {
+      queryBuilder = queryBuilder.or(`username.ilike.%${search}%,details.ilike.%${search}%`);
+    }
+
+    const { data, count, error } = await queryBuilder
+      .order('created_at', { ascending: false })
+      .range(parseInt(offset), parseInt(offset) + parseInt(limit) - 1);
+
+    if (error) throw error;
+
+    res.json({
+      logs: data || [],
+      total: count || 0
+    });
+  } catch (err) {
+    console.error('Lỗi lấy danh sách log:', err);
+    res.status(500).json({ error: err.message || 'Internal server error' });
   }
 });
 

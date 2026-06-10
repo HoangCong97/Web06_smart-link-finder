@@ -1,11 +1,11 @@
 import React, { useState, useEffect } from 'react';
-import { Sparkles, Database, RefreshCw, AlertTriangle, HelpCircle, LogIn, LogOut, Users, Plus } from 'lucide-react';
+import { Sparkles, Database, RefreshCw, AlertTriangle, HelpCircle, LogIn, LogOut, Users, Plus, Shield } from 'lucide-react';
 import LinkForm from './components/LinkForm';
 import SearchBar from './components/SearchBar';
 import LinkCard from './components/LinkCard';
 import Loader from './components/Loader';
 import LoginModal from './components/LoginModal';
-import ManagerManagementModal from './components/ManagerManagementModal';
+import AdminDashboardModal from './components/AdminDashboardModal';
 import EditLinkModal from './components/EditLinkModal';
 import LinkDetailModal from './components/LinkDetailModal';
 import { api } from './services/api';
@@ -169,10 +169,10 @@ function App() {
                   <button
                     onClick={() => setIsManagerModalOpen(true)}
                     className="nav-btn btn-sm"
-                    title="Quản lý Manager"
+                    title="Bảng Quản trị"
                   >
-                    <Users size={14} />
-                    <span className="btn-text">Manager</span>
+                    <Shield size={14} />
+                    <span className="btn-text">Quản trị</span>
                   </button>
                 )}
                 <button
@@ -339,7 +339,7 @@ function App() {
           onLoginSuccess={handleLoginSuccess}
         />
 
-        <ManagerManagementModal
+        <AdminDashboardModal
           isOpen={isManagerModalOpen}
           onClose={() => setIsManagerModalOpen(false)}
         />

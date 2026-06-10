@@ -111,4 +111,16 @@ export const api = {
     request(`/api/users/${id}`, {
       method: 'DELETE',
     }),
+
+  // --- Admin Dashboard APIs ---
+  getAdminHealthCheck: () => request('/api/admin/health-check'),
+  
+  getAdminLogs: (params) => {
+    const query = new URLSearchParams();
+    if (params.actionType) query.append('actionType', params.actionType);
+    if (params.search) query.append('search', params.search);
+    if (params.limit) query.append('limit', params.limit);
+    if (params.offset) query.append('offset', params.offset);
+    return request(`/api/admin/logs?${query.toString()}`);
+  },
 };
