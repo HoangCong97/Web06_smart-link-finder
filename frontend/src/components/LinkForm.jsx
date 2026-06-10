@@ -1,8 +1,9 @@
 import React, { useState } from 'react';
 import { Link, FileText, Calendar, Sparkles, Plus } from 'lucide-react';
 import confetti from 'canvas-confetti';
+import { api } from '../services/api';
 
-const LinkForm = ({ onLinkAdded, backendUrl, token }) => {
+const LinkForm = ({ onLinkAdded }) => {
   const [activeTab, setActiveTab] = useState('manual'); // 'manual' or 'ai'
 
   // Manual Form States
@@ -38,25 +39,12 @@ const LinkForm = ({ onLinkAdded, backendUrl, token }) => {
     setError('');
 
     try {
-      const response = await fetch(`${backendUrl}/api/links`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${token}`
-        },
-        body: JSON.stringify({
-          url,
-          title: title || undefined,
-          content: content || undefined,
-          deadline: deadline || undefined
-        }),
+      const data = await api.createLink({
+        url,
+        title: title || undefined,
+        content: content || undefined,
+        deadline: deadline || undefined
       });
-
-      const data = await response.json();
-
-      if (!response.ok) {
-        throw new Error(data.error || 'Có lỗi xảy ra khi thêm link');
-      }
 
       // Reset manual form
       setUrl('');
@@ -85,20 +73,7 @@ const LinkForm = ({ onLinkAdded, backendUrl, token }) => {
     setError('');
 
     try {
-      const response = await fetch(`${backendUrl}/api/links/analyze`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${token}`
-        },
-        body: JSON.stringify({ rawText }),
-      });
-
-      const data = await response.json();
-
-      if (!response.ok) {
-        throw new Error(data.error || 'Có lỗi xảy ra khi phân tích văn bản');
-      }
+      const data = await api.analyzeLink(rawText);
 
       // Reset AI form
       setRawText('');

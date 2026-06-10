@@ -1,81 +1,13 @@
 import React from 'react';
 import { X, ExternalLink, Calendar, Clock, Eye } from 'lucide-react';
+import { getDomain, formatCreatedDate, formatDeadlineDate, getDeadlineStatus } from '../utils/helpers';
 
 const LinkDetailModal = ({ isOpen, onClose, link, onTrackClick, user }) => {
   if (!isOpen || !link) return null;
 
   const { title, url, content, deadline, created_at, click_count } = link;
 
-  // Extract domain name
-  const getDomain = (urlStr) => {
-    try {
-      return new URL(urlStr).hostname;
-    } catch {
-      return '';
-    }
-  };
-
   const domain = getDomain(url);
-
-  // Format created date
-  const formatCreatedDate = (dateStr) => {
-    if (!dateStr) return 'Không rõ';
-    try {
-      const d = new Date(dateStr);
-      return d.toLocaleDateString('vi-VN', {
-        year: 'numeric',
-        month: 'long',
-        day: 'numeric',
-        hour: '2-digit',
-        minute: '2-digit'
-      });
-    } catch {
-      return dateStr;
-    }
-  };
-
-  // Format deadline date
-  const formatDeadlineDate = (dateStr) => {
-    if (!dateStr) return 'Không có';
-    try {
-      const d = new Date(dateStr);
-      return d.toLocaleDateString('vi-VN', {
-        year: 'numeric',
-        month: 'long',
-        day: 'numeric'
-      });
-    } catch {
-      return dateStr;
-    }
-  };
-
-  // Determine deadline status
-  const getDeadlineStatus = (dateStr) => {
-    if (!dateStr) return null;
-    try {
-      const today = new Date();
-      today.setHours(0, 0, 0, 0);
-      const deadlineDate = new Date(dateStr);
-      deadlineDate.setHours(0, 0, 0, 0);
-
-      const diffTime = deadlineDate - today;
-      const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
-
-      if (diffDays < 0) {
-        return { text: `Quá hạn ${Math.abs(diffDays)} ngày`, type: 'expired' };
-      }
-      if (diffDays === 0) {
-        return { text: 'Hạn chót hôm nay!', type: 'critical' };
-      }
-      if (diffDays <= 3) {
-        return { text: `Còn ${diffDays} ngày`, type: 'urgent' };
-      }
-      return { text: `Còn ${diffDays} ngày`, type: 'normal' };
-    } catch {
-      return null;
-    }
-  };
-
   const deadlineStatus = getDeadlineStatus(deadline);
 
   return (

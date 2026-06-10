@@ -8,9 +8,8 @@ import LoginModal from './components/LoginModal';
 import ManagerManagementModal from './components/ManagerManagementModal';
 import EditLinkModal from './components/EditLinkModal';
 import LinkDetailModal from './components/LinkDetailModal';
+import { api } from './services/api';
 import './App.css';
-
-const BACKEND_URL = import.meta.env.VITE_BACKEND_URL || 'http://localhost:5000';
 
 function App() {
   const [links, setLinks] = useState([]);
@@ -39,11 +38,7 @@ function App() {
     setError('');
     setConnectionWarning(false);
     try {
-      const response = await fetch(`${BACKEND_URL}/api/links`);
-      if (!response.ok) {
-        throw new Error('Không thể lấy danh sách liên kết từ server');
-      }
-      const data = await response.json();
+      const data = await api.getLinks();
       setLinks(data);
     } catch (err) {
       console.error(err);
@@ -72,20 +67,7 @@ function App() {
     setError('');
     setSearchQuery(query);
     try {
-      const response = await fetch(`${BACKEND_URL}/api/search`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({ query, threshold, limit }),
-      });
-
-      const data = await response.json();
-
-      if (!response.ok) {
-        throw new Error(data.error || 'Có lỗi xảy ra trong quá trình tìm kiếm AI');
-      }
-
+      const data = await api.searchLinks(query, threshold, limit);
       setSearchResults(data);
     } catch (err) {
       console.error(err);
@@ -104,17 +86,7 @@ function App() {
   // Handle delete link
   const handleDeleteLink = async (id) => {
     try {
-      const response = await fetch(`${BACKEND_URL}/api/links/${id}`, {
-        method: 'DELETE',
-        headers: {
-          'Authorization': `Bearer ${token}`
-        }
-      });
-
-      if (!response.ok) {
-        const data = await response.json();
-        throw new Error(data.error || 'Lỗi khi xóa link');
-      }
+      await api.deleteLink(id);
 
       // Update local states
       setLinks((prev) => prev.filter((item) => item.id !== id));
@@ -155,13 +127,7 @@ function App() {
   // Gửi API tăng số lượt click và cập nhật state
   const handleLinkClick = async (linkId) => {
     try {
-      const response = await fetch(`${BACKEND_URL}/api/links/${linkId}/click`, {
-        method: 'POST'
-      });
-      if (!response.ok) {
-        throw new Error('Lỗi cập nhật lượt click');
-      }
-      const data = await response.json();
+      const data = await api.trackClick(linkId);
 
       setLinks((prev) =>
         prev.map((item) => (item.id === linkId ? { ...item, click_count: data.click_count } : item))
@@ -268,8 +234,6 @@ function App() {
             <div className="sidebar-column">
               <LinkForm
                 onLinkAdded={handleLinkAdded}
-                backendUrl={BACKEND_URL}
-                token={token}
               />
             </div>
           )}
@@ -373,14 +337,11 @@ function App() {
           isOpen={isLoginModalOpen}
           onClose={() => setIsLoginModalOpen(false)}
           onLoginSuccess={handleLoginSuccess}
-          backendUrl={BACKEND_URL}
         />
 
         <ManagerManagementModal
           isOpen={isManagerModalOpen}
           onClose={() => setIsManagerModalOpen(false)}
-          backendUrl={BACKEND_URL}
-          token={token}
         />
 
         <EditLinkModal
@@ -388,8 +349,6 @@ function App() {
           onClose={() => setEditingLink(null)}
           link={editingLink}
           onLinkUpdated={handleLinkUpdated}
-          backendUrl={BACKEND_URL}
-          token={token}
         />
 
         <LinkDetailModal

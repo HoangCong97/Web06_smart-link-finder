@@ -1,0 +1,114 @@
+const BACKEND_URL = import.meta.env.VITE_BACKEND_URL || 'http://localhost:5000';
+
+/**
+ * Hàm phụ trợ thực hiện các request HTTP tới Backend
+ * @param {string} endpoint 
+ * @param {object} options 
+ * @returns {Promise<any>}
+ */
+async function request(endpoint, options = {}) {
+  const url = `${BACKEND_URL}${endpoint}`;
+  
+  // Thiết lập các headers mặc định
+  const headers = {
+    ...options.headers,
+  };
+
+  // Đính kèm token nếu tồn tại trong localStorage
+  const token = localStorage.getItem('token');
+  if (token) {
+    headers['Authorization'] = `Bearer ${token}`;
+  }
+
+  // Tự động thêm Content-Type nếu gửi body
+  if (options.body && !(options.body instanceof FormData)) {
+    headers['Content-Type'] = 'application/json';
+  }
+
+  const response = await fetch(url, {
+    ...options,
+    headers,
+  });
+
+  // Đọc dữ liệu phản hồi (JSON hoặc text)
+  let data;
+  const contentType = response.headers.get('content-type');
+  if (contentType && contentType.includes('application/json')) {
+    data = await response.json();
+  } else {
+    data = await response.text();
+  }
+
+  if (!response.ok) {
+    const errorMessage = (data && data.error) || `Yêu cầu thất bại với mã lỗi ${response.status}`;
+    throw new Error(errorMessage);
+  }
+
+  return data;
+}
+
+export const api = {
+  // --- Link APIs ---
+  getLinks: () => request('/api/links'),
+  
+  searchLinks: (query, threshold, limit) => 
+    request('/api/search', {
+      method: 'POST',
+      body: JSON.stringify({ query, threshold, limit }),
+    }),
+
+  createLink: (linkData) => 
+    request('/api/links', {
+      method: 'POST',
+      body: JSON.stringify(linkData),
+    }),
+
+  analyzeLink: (rawText) => 
+    request('/api/links/analyze', {
+      method: 'POST',
+      body: JSON.stringify({ rawText }),
+    }),
+
+  updateLink: (id, linkData) => 
+    request(`/api/links/${id}`, {
+      method: 'PUT',
+      body: JSON.stringify(linkData),
+    }),
+
+  deleteLink: (id) => 
+    request(`/api/links/${id}`, {
+      method: 'DELETE',
+    }),
+
+  trackClick: (id) => 
+    request(`/api/links/${id}/click`, {
+      method: 'POST',
+    }),
+
+  // --- Auth APIs ---
+  login: (username, password) => 
+    request('/api/auth/login', {
+      method: 'POST',
+      body: JSON.stringify({ username, password }),
+    }),
+
+  // --- User APIs (Admin) ---
+  getUsers: () => request('/api/users'),
+
+  createUser: (username, password) => 
+    request('/api/users', {
+      method: 'POST',
+      body: JSON.stringify({ username, password }),
+    }),
+
+  updateUser: (id, payload) => 
+    request(`/api/users/${id}`, {
+      method: 'PUT',
+      body: JSON.stringify(payload),
+    }),
+
+  deleteUser: (id) => 
+    request(`/api/users/${id}`, {
+      method: 'DELETE',
+    }),
+};

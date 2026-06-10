@@ -1,7 +1,8 @@
 import React, { useState } from 'react';
 import { X, LogIn, Lock, User } from 'lucide-react';
+import { api } from '../services/api';
 
-const LoginModal = ({ isOpen, onClose, onLoginSuccess, backendUrl }) => {
+const LoginModal = ({ isOpen, onClose, onLoginSuccess }) => {
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
@@ -20,19 +21,7 @@ const LoginModal = ({ isOpen, onClose, onLoginSuccess, backendUrl }) => {
     setError('');
 
     try {
-      const response = await fetch(`${backendUrl}/api/auth/login`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({ username, password }),
-      });
-
-      const data = await response.json();
-
-      if (!response.ok) {
-        throw new Error(data.error || 'Đăng nhập thất bại');
-      }
+      const data = await api.login(username, password);
 
       // Store in localStorage
       localStorage.setItem('token', data.token);

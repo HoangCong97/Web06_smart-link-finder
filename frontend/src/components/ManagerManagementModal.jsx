@@ -1,7 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import { X, Users, UserPlus, Trash2, Edit2, Save, Key, AlertCircle } from 'lucide-react';
+import { api } from '../services/api';
 
-const ManagerManagementModal = ({ isOpen, onClose, backendUrl, token }) => {
+const ManagerManagementModal = ({ isOpen, onClose }) => {
   const [managers, setManagers] = useState([]);
   const [loading, setLoading] = useState(false);
   const [actionLoading, setActionLoading] = useState(false);
@@ -17,17 +18,11 @@ const ManagerManagementModal = ({ isOpen, onClose, backendUrl, token }) => {
 
   // Fetch managers when modal opens
   const fetchManagers = async () => {
-    if (!token) return;
+    if (!localStorage.getItem('token')) return;
     setLoading(true);
     setError('');
     try {
-      const response = await fetch(`${backendUrl}/api/users`, {
-        headers: {
-          'Authorization': `Bearer ${token}`
-        }
-      });
-      const data = await response.json();
-      if (!response.ok) throw new Error(data.error || 'Không thể tải danh sách Manager');
+      const data = await api.getUsers();
       setManagers(data);
     } catch (err) {
       console.error(err);
@@ -64,17 +59,7 @@ const ManagerManagementModal = ({ isOpen, onClose, backendUrl, token }) => {
     setSuccessMsg('');
 
     try {
-      const response = await fetch(`${backendUrl}/api/users`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${token}`
-        },
-        body: JSON.stringify({ username, password })
-      });
-
-      const data = await response.json();
-      if (!response.ok) throw new Error(data.error || 'Không thể tạo Manager');
+      const data = await api.createUser(username, password);
 
       setSuccessMsg(`Đã tạo thành công tài khoản: ${data.username}`);
       setUsername('');
@@ -97,15 +82,7 @@ const ManagerManagementModal = ({ isOpen, onClose, backendUrl, token }) => {
     setSuccessMsg('');
 
     try {
-      const response = await fetch(`${backendUrl}/api/users/${id}`, {
-        method: 'DELETE',
-        headers: {
-          'Authorization': `Bearer ${token}`
-        }
-      });
-
-      const data = await response.json();
-      if (!response.ok) throw new Error(data.error || 'Không thể xóa Manager');
+      await api.deleteUser(id);
 
       setSuccessMsg(`Đã xóa thành công tài khoản Manager`);
       fetchManagers();
@@ -139,17 +116,7 @@ const ManagerManagementModal = ({ isOpen, onClose, backendUrl, token }) => {
       const payload = { username: editingUsername };
       if (editingPassword) payload.password = editingPassword;
 
-      const response = await fetch(`${backendUrl}/api/users/${id}`, {
-        method: 'PUT',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${token}`
-        },
-        body: JSON.stringify(payload)
-      });
-
-      const data = await response.json();
-      if (!response.ok) throw new Error(data.error || 'Không thể cập nhật thông tin');
+      await api.updateUser(id, payload);
 
       setSuccessMsg(`Cập nhật thông tin tài khoản thành công`);
       setEditingId(null);
@@ -215,7 +182,7 @@ const ManagerManagementModal = ({ isOpen, onClose, backendUrl, token }) => {
                   type="password"
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
-                  placeholder="Nhập mật khẩu tài khoản"
+                  placeholder="Nhập mật khẩu"
                   disabled={actionLoading}
                   className="input-field"
                   required
@@ -281,7 +248,7 @@ const ManagerManagementModal = ({ isOpen, onClose, backendUrl, token }) => {
                               <div className="password-edit-sm">
                                 <input
                                   type="password"
-                                  placeholder="Mật khẩu mới (bỏ trống nếu không đổi)"
+                                  placeholder="Mật khẩu mới"
                                   value={editingPassword}
                                   onChange={(e) => setEditingPassword(e.target.value)}
                                   className="input-field input-sm input-pwd"

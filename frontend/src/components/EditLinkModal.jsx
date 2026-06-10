@@ -1,8 +1,9 @@
 import React, { useState, useEffect } from 'react';
 import { X, Link, FileText, Calendar, Edit3 } from 'lucide-react';
 import confetti from 'canvas-confetti';
+import { api } from '../services/api';
 
-const EditLinkModal = ({ isOpen, onClose, link, onLinkUpdated, backendUrl, token }) => {
+const EditLinkModal = ({ isOpen, onClose, link, onLinkUpdated }) => {
   const [url, setUrl] = useState('');
   const [title, setTitle] = useState('');
   const [content, setContent] = useState('');
@@ -56,25 +57,12 @@ const EditLinkModal = ({ isOpen, onClose, link, onLinkUpdated, backendUrl, token
     setError('');
 
     try {
-      const response = await fetch(`${backendUrl}/api/links/${link.id}`, {
-        method: 'PUT',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${token}`
-        },
-        body: JSON.stringify({
-          url,
-          title,
-          content: content || '',
-          deadline: deadline || null
-        }),
+      const data = await api.updateLink(link.id, {
+        url,
+        title,
+        content: content || '',
+        deadline: deadline || null
       });
-
-      const data = await response.json();
-
-      if (!response.ok) {
-        throw new Error(data.error || 'Có lỗi xảy ra khi sửa bài viết');
-      }
 
       triggerConfetti();
       onLinkUpdated(data);

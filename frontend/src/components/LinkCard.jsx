@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { Trash2, ExternalLink, Calendar, Award, Edit2, Eye } from 'lucide-react';
+import { getDomain, getDeadlineStatus } from '../utils/helpers';
 
 const LinkCard = ({ link, onDelete, onEdit, onClickCard, onTrackClick, user, isSearchResult }) => {
   const [isDeleting, setIsDeleting] = useState(false);
@@ -7,42 +8,8 @@ const LinkCard = ({ link, onDelete, onEdit, onClickCard, onTrackClick, user, isS
 
   const { id, url, title, deadline, similarity, click_count } = link;
 
-  // Extract domain name from URL
-  const getDomain = (urlStr) => {
-    try {
-      return new URL(urlStr).hostname;
-    } catch {
-      return '';
-    }
-  };
-
   const domain = getDomain(url);
-
-  // Compute deadline status badge details
-  const getDeadlineStatus = () => {
-    if (!deadline) return null;
-
-    const today = new Date();
-    today.setHours(0, 0, 0, 0);
-    const deadlineDate = new Date(deadline);
-    deadlineDate.setHours(0, 0, 0, 0);
-
-    const diffTime = deadlineDate - today;
-    const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
-
-    if (diffDays < 0) {
-      return { text: `Quá hạn ${Math.abs(diffDays)} ngày`, type: 'expired' };
-    }
-    if (diffDays === 0) {
-      return { text: 'Hạn chót hôm nay!', type: 'critical' };
-    }
-    if (diffDays <= 3) {
-      return { text: `Còn ${diffDays} ngày`, type: 'urgent' };
-    }
-    return { text: `Hạn: ${new Date(deadline).toLocaleDateString('vi-VN')}`, type: 'normal' };
-  };
-
-  const deadlineStatus = getDeadlineStatus();
+  const deadlineStatus = getDeadlineStatus(deadline);
 
   const handleDeleteClick = (e) => {
     e.stopPropagation();
