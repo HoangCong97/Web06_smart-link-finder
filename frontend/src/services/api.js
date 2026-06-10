@@ -119,6 +119,8 @@ export const api = {
     const query = new URLSearchParams();
     if (params.actionType) query.append('actionType', params.actionType);
     if (params.search) query.append('search', params.search);
+    if (params.username) query.append('username', params.username);
+    if (params.date) query.append('date', params.date);
     if (params.limit) query.append('limit', params.limit);
     if (params.offset) query.append('offset', params.offset);
     return request(`/api/admin/logs?${query.toString()}`);

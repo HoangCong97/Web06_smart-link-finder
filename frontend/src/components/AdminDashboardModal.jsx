@@ -32,6 +32,8 @@ const AdminDashboardModal = ({ isOpen, onClose }) => {
   const [actionTypeFilter, setActionTypeFilter] = useState('');
   const [searchFilter, setSearchFilter] = useState('');
   const [tempSearchFilter, setTempSearchFilter] = useState('');
+  const [usernameFilter, setUsernameFilter] = useState('');
+  const [dateFilter, setDateFilter] = useState('');
   const searchTimeoutRef = useRef(null);
 
   // Fetch managers logic
@@ -76,6 +78,8 @@ const AdminDashboardModal = ({ isOpen, onClose }) => {
       const data = await api.getAdminLogs({
         actionType: actionTypeFilter,
         search: searchFilter,
+        username: usernameFilter,
+        date: dateFilter,
         limit: 15,
         offset: currentOffset
       });
@@ -98,9 +102,10 @@ const AdminDashboardModal = ({ isOpen, onClose }) => {
     if (isOpen) {
       setError('');
       setSuccessMsg('');
-      if (activeTab === 'managers') {
-        fetchManagers();
-      } else if (activeTab === 'connections') {
+      // Luôn tải danh sách manager để phục vụ hiển thị bộ lọc người dùng
+      fetchManagers();
+      
+      if (activeTab === 'connections') {
         fetchHealth();
       } else if (activeTab === 'logs') {
         fetchLogs(true);
@@ -113,7 +118,7 @@ const AdminDashboardModal = ({ isOpen, onClose }) => {
     if (isOpen && activeTab === 'logs') {
       fetchLogs(true);
     }
-  }, [actionTypeFilter, searchFilter]);
+  }, [actionTypeFilter, searchFilter, usernameFilter, dateFilter]);
 
   // Handle live search filter typing with debounce
   const handleSearchChange = (e) => {
@@ -134,6 +139,8 @@ const AdminDashboardModal = ({ isOpen, onClose }) => {
     setTempSearchFilter('');
     setSearchFilter('');
     setActionTypeFilter('');
+    setUsernameFilter('');
+    setDateFilter('');
   };
 
   if (!isOpen) return null;
@@ -613,14 +620,14 @@ const AdminDashboardModal = ({ isOpen, onClose }) => {
               <h4 className="section-subtitle">Nhật ký hoạt động hệ thống ({logsTotal})</h4>
 
               {/* Log filtering controls */}
-              <div className="logs-filter-bar glass-panel">
+              <div className="logs-filter-bar glass-panel" style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '0.75rem', padding: '1rem' }}>
                 <div className="filter-item search-box">
                   <Search size={14} className="search-icon" />
                   <input
                     type="text"
                     value={tempSearchFilter}
                     onChange={handleSearchChange}
-                    placeholder="Tìm theo người thực hiện, chi tiết..."
+                    placeholder="Tìm chi tiết hoạt động..."
                     className="input-field input-sm search-log-input"
                   />
                 </div>
@@ -644,13 +651,38 @@ const AdminDashboardModal = ({ isOpen, onClose }) => {
                   </select>
                 </div>
 
-                <div className="filter-actions-row">
+                <div className="filter-item select-box">
+                  <select
+                    value={usernameFilter}
+                    onChange={(e) => setUsernameFilter(e.target.value)}
+                    className="input-field input-sm"
+                  >
+                    <option value="">-- Tất cả tài khoản --</option>
+                    <option value="Guest">Guest (Khách)</option>
+                    <option value="admin">admin (Admin)</option>
+                    {managers.map(m => (
+                      <option key={m.id} value={m.username}>{m.username} (Manager)</option>
+                    ))}
+                  </select>
+                </div>
+
+                <div className="filter-item date-box">
+                  <input
+                    type="date"
+                    value={dateFilter}
+                    onChange={(e) => setDateFilter(e.target.value)}
+                    className="input-field input-sm"
+                    style={{ cursor: 'pointer' }}
+                  />
+                </div>
+
+                <div className="filter-actions-row" style={{ display: 'flex', gap: '0.5rem', gridColumn: '1 / -1', justifyContent: 'flex-end', marginTop: '0.25rem' }}>
                   <button
                     onClick={handleClearFilters}
                     className="btn-secondary btn-sm flex-center"
                     title="Xóa bộ lọc"
-                    disabled={!actionTypeFilter && !searchFilter}
-                    style={{ padding: '0.45rem' }}
+                    disabled={!actionTypeFilter && !searchFilter && !usernameFilter && !dateFilter}
+                    style={{ padding: '0.45rem 1rem' }}
                   >
                     <span>Làm mới bộ lọc</span>
                   </button>
@@ -659,7 +691,7 @@ const AdminDashboardModal = ({ isOpen, onClose }) => {
                     onClick={() => fetchLogs(true)}
                     disabled={loadingLogs}
                     className="btn-primary btn-sm flex-center gap-1.5"
-                    style={{ padding: '0.45rem 0.8rem' }}
+                    style={{ padding: '0.45rem 1.2rem' }}
                   >
                     <RefreshCw size={12} className={loadingLogs ? 'animate-spin' : ''} />
                     <span>Tải lại</span>
