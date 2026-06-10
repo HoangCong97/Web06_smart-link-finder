@@ -343,7 +343,7 @@ app.get('/api/links', async (req, res) => {
   try {
     const { data, error } = await supabase
       .from('fl_links')
-      .select('id, url, title, content, deadline, created_at')
+      .select('id, url, title, content, deadline, click_count, created_at')
       .order('created_at', { ascending: false });
 
     if (error) throw error;
@@ -382,7 +382,7 @@ app.post('/api/links', authenticateJWT, async (req, res) => {
           embedding: embedding
         }
       ])
-      .select('id, url, title, content, deadline, created_at');
+      .select('id, url, title, content, deadline, click_count, created_at');
 
     if (error) throw error;
     res.status(201).json(data[0]);
@@ -482,7 +482,7 @@ Text to analyze:
           embedding: embedding
         }
       ])
-      .select('id, url, title, content, deadline, created_at');
+      .select('id, url, title, content, deadline, click_count, created_at');
 
     if (error) throw error;
     res.status(201).json(data[0]);
@@ -513,7 +513,7 @@ app.post('/api/search', async (req, res) => {
       console.log(`Executing keyword FTS for query: "${safeQuery}"`);
       const { data: ftsData, error: ftsError } = await supabase
         .from('fl_links')
-        .select('id, url, title, content, deadline, created_at')
+        .select('id, url, title, content, deadline, click_count, created_at')
         .or(`title.ilike.%${safeQuery}%,content.ilike.%${safeQuery}%,url.ilike.%${safeQuery}%`)
         .limit(matchLimit);
 
@@ -610,12 +610,43 @@ app.put('/api/links/:id', authenticateJWT, async (req, res) => {
       .from('fl_links')
       .update(updateData)
       .eq('id', id)
-      .select('id, url, title, content, deadline, created_at');
+      .select('id, url, title, content, deadline, click_count, created_at');
 
     if (error) throw error;
     res.json(data[0]);
   } catch (error) {
     console.error('Error updating link:', error);
+    res.status(500).json({ error: error.message || 'Internal server error' });
+  }
+});
+
+// POST /api/links/:id/click (Tăng số lượt click khi truy cập liên kết)
+app.post('/api/links/:id/click', async (req, res) => {
+  const { id } = req.params;
+  try {
+    // Lấy số lượt click hiện tại
+    const { data: link, error: fetchError } = await supabase
+      .from('fl_links')
+      .select('click_count')
+      .eq('id', id)
+      .single();
+
+    if (fetchError || !link) {
+      return res.status(404).json({ error: 'Liên kết không tồn tại' });
+    }
+
+    const newClickCount = (link.click_count || 0) + 1;
+
+    const { data, error: updateError } = await supabase
+      .from('fl_links')
+      .update({ click_count: newClickCount })
+      .eq('id', id)
+      .select('id, click_count');
+
+    if (updateError) throw updateError;
+    res.json({ success: true, click_count: newClickCount });
+  } catch (error) {
+    console.error('Error incrementing click count:', error);
     res.status(500).json({ error: error.message || 'Internal server error' });
   }
 });

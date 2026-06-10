@@ -1,10 +1,10 @@
 import React from 'react';
-import { X, ExternalLink, Calendar, Clock, FileText, Globe } from 'lucide-react';
+import { X, ExternalLink, Calendar, Clock, Eye } from 'lucide-react';
 
-const LinkDetailModal = ({ isOpen, onClose, link }) => {
+const LinkDetailModal = ({ isOpen, onClose, link, onTrackClick, user }) => {
   if (!isOpen || !link) return null;
 
-  const { title, url, content, deadline, created_at } = link;
+  const { title, url, content, deadline, created_at, click_count } = link;
 
   // Extract domain name
   const getDomain = (urlStr) => {
@@ -128,6 +128,18 @@ const LinkDetailModal = ({ isOpen, onClose, link }) => {
                 </span>
               </div>
             </div>
+
+            {user && (user.role === 'admin' || user.role === 'manager') && (
+              <div className="detail-time-item">
+                <span className="detail-time-label flex-align-center gap-1">
+                  <Eye size={13} />
+                  <span>Lượt truy cập:</span>
+                </span>
+                <span className="detail-time-value">
+                  {click_count || 0} lượt
+                </span>
+              </div>
+            )}
           </div>
 
           {/* Action Button */}
@@ -137,6 +149,9 @@ const LinkDetailModal = ({ isOpen, onClose, link }) => {
             rel="noopener noreferrer"
             className="btn-primary flex-center gap-2 detail-btn-visit"
             style={{ textDecoration: 'none' }}
+            onClick={() => {
+              if (onTrackClick) onTrackClick(link.id);
+            }}
           >
             <span>Truy cập liên kết</span>
             <ExternalLink size={15} />

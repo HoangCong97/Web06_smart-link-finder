@@ -152,6 +152,34 @@ function App() {
     }
   };
 
+  // Gửi API tăng số lượt click và cập nhật state
+  const handleLinkClick = async (linkId) => {
+    try {
+      const response = await fetch(`${BACKEND_URL}/api/links/${linkId}/click`, {
+        method: 'POST'
+      });
+      if (!response.ok) {
+        throw new Error('Lỗi cập nhật lượt click');
+      }
+      const data = await response.json();
+
+      setLinks((prev) =>
+        prev.map((item) => (item.id === linkId ? { ...item, click_count: data.click_count } : item))
+      );
+      if (searchResults) {
+        setSearchResults((prev) =>
+          prev.map((item) => (item.id === linkId ? { ...item, click_count: data.click_count } : item))
+        );
+      }
+      // Cập nhật ngay lập tức nếu đang mở xem chi tiết
+      setViewingLink((prev) => 
+        prev && prev.id === linkId ? { ...prev, click_count: data.click_count } : prev
+      );
+    } catch (err) {
+      console.error('Không thể cập nhật lượt click:', err);
+    }
+  };
+
   const activeLinksList = searchResults !== null ? searchResults : links;
   const isSearchingActive = searchResults !== null;
 
@@ -215,160 +243,162 @@ function App() {
 
       <div className="app-container" style={{ paddingTop: '1.5rem' }}>
 
-      {/* Connection warning banner if server is offline */}
-      {connectionWarning && (
-        <div className="warning-banner-large animated-fade-in" style={{ marginBottom: '2rem' }}>
-          <div className="warning-banner-left">
-            <AlertTriangle size={20} className="icon-bounce" />
-            <div className="warning-banner-text-group">
-              <p className="warning-banner-title">Không thể kết nối đến Backend Server ({BACKEND_URL})</p>
-              <p className="warning-banner-desc">Vui lòng khởi chạy server bằng lệnh `npm run dev` ở thư mục backend và kiểm tra cấu hình file .env.</p>
+        {/* Connection warning banner if server is offline */}
+        {connectionWarning && (
+          <div className="warning-banner-large animated-fade-in" style={{ marginBottom: '2rem' }}>
+            <div className="warning-banner-left">
+              <AlertTriangle size={20} className="icon-bounce" />
+              <div className="warning-banner-text-group">
+                <p className="warning-banner-title">Không thể kết nối đến Server</p>
+              </div>
             </div>
-          </div>
-          <button
-            onClick={fetchLinks}
-            className="warning-banner-retry-btn flex-center gap-1.5"
-          >
-            <RefreshCw size={14} /> Thử lại
-          </button>
-        </div>
-      )}
-
-      {/* Main Layout Grid (Dynamic Columns: 380px 1fr if form shown, else 1fr) */}
-      <div className={isFormVisible ? "layout-grid" : "layout-grid-full"}>
-        {/* Left Side: Create Form (only if logged in and toggled showLinkForm) */}
-        {isFormVisible && (
-          <div className="sidebar-column">
-            <LinkForm
-              onLinkAdded={handleLinkAdded}
-              backendUrl={BACKEND_URL}
-              token={token}
-            />
+            <button
+              onClick={fetchLinks}
+              className="warning-banner-retry-btn flex-center gap-1.5"
+            >
+              <RefreshCw size={14} /> Thử lại
+            </button>
           </div>
         )}
 
-        {/* Right Side: Search & List */}
-        <div className="main-column">
-          {/* Search controls (Fixed/Sticky) */}
-          <div className="sticky-search-container">
-            <SearchBar
-              onSearch={handleSearch}
-              onClear={handleClearSearch}
-              isLoading={isSearching}
-            />
-          </div>
+        {/* Main Layout Grid (Dynamic Columns: 380px 1fr if form shown, else 1fr) */}
+        <div className={isFormVisible ? "layout-grid" : "layout-grid-full"}>
+          {/* Left Side: Create Form (only if logged in and toggled showLinkForm) */}
+          {isFormVisible && (
+            <div className="sidebar-column">
+              <LinkForm
+                onLinkAdded={handleLinkAdded}
+                backendUrl={BACKEND_URL}
+                token={token}
+              />
+            </div>
+          )}
 
-          {/* Heading dynamic block */}
-          <div className="column-header-row">
-            <h3 className="column-header-title flex-center gap-2">
-              {isSearchingActive ? (
-                <>
-                  <span>
-                    Kết quả tìm kiếm từ AI cho "{searchQuery}" ({activeLinksList.length})
-                  </span>
-                </>
-              ) : (
-                <>
-                  <span>Tất cả liên kết đã lưu ({links.length})</span>
-                </>
+          {/* Right Side: Search & List */}
+          <div className="main-column">
+            {/* Search controls (Fixed/Sticky) */}
+            <div className="sticky-search-container">
+              <SearchBar
+                onSearch={handleSearch}
+                onClear={handleClearSearch}
+                isLoading={isSearching}
+              />
+            </div>
+
+            {/* Heading dynamic block */}
+            <div className="column-header-row">
+              <h3 className="column-header-title flex-center gap-2">
+                {isSearchingActive ? (
+                  <>
+                    <span>
+                      Kết quả tìm kiếm từ AI cho "{searchQuery}" ({activeLinksList.length})
+                    </span>
+                  </>
+                ) : (
+                  <>
+                    <span>Tất cả liên kết đã lưu ({links.length})</span>
+                  </>
+                )}
+              </h3>
+
+              {!isSearchingActive && (
+                <button
+                  onClick={fetchLinks}
+                  disabled={isLoading}
+                  className="refresh-btn flex-center gap-1.5"
+                  title="Làm mới danh sách"
+                >
+                  <RefreshCw size={14} className={isLoading ? 'animate-spin' : ''} />
+                  <span>Làm mới</span>
+                </button>
               )}
-            </h3>
+            </div>
 
-            {!isSearchingActive && (
-              <button
-                onClick={fetchLinks}
-                disabled={isLoading}
-                className="refresh-btn flex-center gap-1.5"
-                title="Làm mới danh sách"
-              >
-                <RefreshCw size={14} className={isLoading ? 'animate-spin' : ''} />
-                <span>Làm mới</span>
-              </button>
+            {/* Error message */}
+            {error && !connectionWarning && (
+              <div className="error-banner mb-6">
+                {error}
+              </div>
+            )}
+
+            {/* Results State Management */}
+            {isSearching ? (
+              <div className="glass-panel loader-wrapper-panel">
+                <Loader message="AI đang giải mã câu hỏi & truy vấn cơ sở dữ liệu vector..." />
+              </div>
+            ) : isLoading ? (
+              <div className="glass-panel loader-wrapper-panel">
+                <Loader message="Đang tải danh sách liên kết..." />
+              </div>
+            ) : activeLinksList.length === 0 ? (
+              <div className="glass-panel empty-state">
+                <div className="empty-state-icon-box">
+                  <AlertTriangle size={32} />
+                </div>
+                <h4 className="empty-state-title">
+                  {isSearchingActive ? 'Không tìm thấy liên kết phù hợp' : 'Danh sách liên kết trống'}
+                </h4>
+
+                <p className="empty-state-desc">
+                  {isSearchingActive
+                    ? 'Hãy thử hạ thấp ngưỡng tương đồng (threshold) trong phần tinh chỉnh hoặc tìm kiếm với từ khóa khác.'
+                    : user
+                      ? 'Hãy click nút "Thêm liên kết" phía trên để mở khung thêm liên kết đầu tiên.'
+                      : 'Đăng nhập với quyền Admin hoặc Manager để thêm liên kết mới.'
+                  }
+                </p>
+              </div>
+            ) : (
+              <div className="cards-grid animated-fade-in">
+                {activeLinksList.map((link) => (
+                  <div key={link.id} className="animated-fade-in">
+                    <LinkCard
+                      link={link}
+                      onDelete={handleDeleteLink}
+                      onEdit={(l) => setEditingLink(l)}
+                      onClickCard={(l) => setViewingLink(l)}
+                      onTrackClick={handleLinkClick}
+                      user={user}
+                      isSearchResult={isSearchingActive}
+                    />
+                  </div>
+                ))}
+              </div>
             )}
           </div>
-
-          {/* Error message */}
-          {error && !connectionWarning && (
-            <div className="error-banner mb-6">
-              {error}
-            </div>
-          )}
-
-          {/* Results State Management */}
-          {isSearching ? (
-            <div className="glass-panel loader-wrapper-panel">
-              <Loader message="AI đang giải mã câu hỏi & truy vấn cơ sở dữ liệu vector..." />
-            </div>
-          ) : isLoading ? (
-            <div className="glass-panel loader-wrapper-panel">
-              <Loader message="Đang tải danh sách liên kết..." />
-            </div>
-          ) : activeLinksList.length === 0 ? (
-            <div className="glass-panel empty-state">
-              <div className="empty-state-icon-box">
-                <AlertTriangle size={32} />
-              </div>
-              <h4 className="empty-state-title">
-                {isSearchingActive ? 'Không tìm thấy liên kết phù hợp' : 'Danh sách liên kết trống'}
-              </h4>
-
-              <p className="empty-state-desc">
-                {isSearchingActive
-                  ? 'Hãy thử hạ thấp ngưỡng tương đồng (threshold) trong phần tinh chỉnh hoặc tìm kiếm với từ khóa khác.'
-                  : user
-                    ? 'Hãy click nút "Thêm liên kết" phía trên để mở khung thêm liên kết đầu tiên.'
-                    : 'Đăng nhập với quyền Admin hoặc Manager để thêm liên kết mới.'
-                }
-              </p>
-            </div>
-          ) : (
-            <div className="cards-grid animated-fade-in">
-              {activeLinksList.map((link) => (
-                <div key={link.id} className="animated-fade-in">
-                  <LinkCard
-                    link={link}
-                    onDelete={handleDeleteLink}
-                    onEdit={(l) => setEditingLink(l)}
-                    onClickCard={(l) => setViewingLink(l)}
-                    user={user}
-                    isSearchResult={isSearchingActive}
-                  />
-                </div>
-              ))}
-            </div>
-          )}
         </div>
-      </div>
 
-      {/* Auth & Admin Modals */}
-      <LoginModal
-        isOpen={isLoginModalOpen}
-        onClose={() => setIsLoginModalOpen(false)}
-        onLoginSuccess={handleLoginSuccess}
-        backendUrl={BACKEND_URL}
-      />
+        {/* Auth & Admin Modals */}
+        <LoginModal
+          isOpen={isLoginModalOpen}
+          onClose={() => setIsLoginModalOpen(false)}
+          onLoginSuccess={handleLoginSuccess}
+          backendUrl={BACKEND_URL}
+        />
 
-      <ManagerManagementModal
-        isOpen={isManagerModalOpen}
-        onClose={() => setIsManagerModalOpen(false)}
-        backendUrl={BACKEND_URL}
-        token={token}
-      />
+        <ManagerManagementModal
+          isOpen={isManagerModalOpen}
+          onClose={() => setIsManagerModalOpen(false)}
+          backendUrl={BACKEND_URL}
+          token={token}
+        />
 
-      <EditLinkModal
-        isOpen={editingLink !== null}
-        onClose={() => setEditingLink(null)}
-        link={editingLink}
-        onLinkUpdated={handleLinkUpdated}
-        backendUrl={BACKEND_URL}
-        token={token}
-      />
+        <EditLinkModal
+          isOpen={editingLink !== null}
+          onClose={() => setEditingLink(null)}
+          link={editingLink}
+          onLinkUpdated={handleLinkUpdated}
+          backendUrl={BACKEND_URL}
+          token={token}
+        />
 
-      <LinkDetailModal
-        isOpen={viewingLink !== null}
-        onClose={() => setViewingLink(null)}
-        link={viewingLink}
-      />
+        <LinkDetailModal
+          isOpen={viewingLink !== null}
+          onClose={() => setViewingLink(null)}
+          link={viewingLink}
+          onTrackClick={handleLinkClick}
+          user={user}
+        />
       </div>
     </>
   );

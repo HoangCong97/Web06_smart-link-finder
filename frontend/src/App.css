@@ -855,6 +855,29 @@ h4 {
   border: 1px solid rgba(255, 255, 255, 0.2);
 }
 
+.views-badge {
+  position: absolute;
+  top: 0.75rem;
+  right: 0.75rem;
+  display: flex;
+  align-items: center;
+  gap: 0.25rem;
+  color: var(--text-muted);
+  font-size: 0.72rem;
+  font-weight: 700;
+  background: rgba(139, 92, 246, 0.05);
+  padding: 0.15rem 0.45rem;
+  border-radius: 6px;
+  border: 1px solid rgba(139, 92, 246, 0.08);
+  transition: all 0.2s ease;
+}
+
+.link-card:hover .views-badge {
+  background: rgba(139, 92, 246, 0.1);
+  color: var(--primary);
+  border-color: rgba(139, 92, 246, 0.15);
+}
+
 .card-title {
   font-size: 0.95rem;
   font-weight: 700;
@@ -1767,7 +1790,7 @@ h4 {
 
 @media (min-width: 480px) {
   .detail-time-grid {
-    grid-template-columns: 1fr 1fr;
+    grid-template-columns: repeat(auto-fit, minmax(145px, 1fr));
   }
 }
 

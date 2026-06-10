@@ -1,11 +1,11 @@
 import React, { useState } from 'react';
-import { Trash2, ExternalLink, Calendar, Award, Edit2 } from 'lucide-react';
+import { Trash2, ExternalLink, Calendar, Award, Edit2, Eye } from 'lucide-react';
 
-const LinkCard = ({ link, onDelete, onEdit, onClickCard, user, isSearchResult }) => {
+const LinkCard = ({ link, onDelete, onEdit, onClickCard, onTrackClick, user, isSearchResult }) => {
   const [isDeleting, setIsDeleting] = useState(false);
   const [showConfirm, setShowConfirm] = useState(false);
 
-  const { id, url, title, deadline, similarity } = link;
+  const { id, url, title, deadline, similarity, click_count } = link;
 
   // Extract domain name from URL
   const getDomain = (urlStr) => {
@@ -70,8 +70,20 @@ const LinkCard = ({ link, onDelete, onEdit, onClickCard, user, isSearchResult })
         </div>
       )}
 
+      {/* Click / View count badge (Only for Admin & Manager) */}
+      {user && (user.role === 'admin' || user.role === 'manager') && click_count !== undefined && click_count > 0 && (
+        <div className="views-badge" title={`${click_count} lượt truy cập`}>
+          <Eye size={13} />
+          <span>{click_count}</span>
+        </div>
+      )}
+
       {/* Card Title */}
-      <p className="card-title" title={title || url}>
+      <p 
+        className="card-title" 
+        title={title || url}
+        style={user && (user.role === 'admin' || user.role === 'manager') && click_count > 0 ? { paddingRight: '3.2rem' } : {}}
+      >
         {title || url}
       </p>
 
@@ -83,7 +95,10 @@ const LinkCard = ({ link, onDelete, onEdit, onClickCard, user, isSearchResult })
           target="_blank"
           rel="noopener noreferrer"
           className="card-link flex-center gap-1"
-          onClick={(e) => e.stopPropagation()}
+          onClick={(e) => {
+            e.stopPropagation();
+            if (onTrackClick) onTrackClick(id);
+          }}
         >
           <span className="card-domain">{domain}</span>
           <ExternalLink size={12} />
