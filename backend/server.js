@@ -583,6 +583,13 @@ app.put('/api/links/:id', authenticateJWT, async (req, res) => {
   }
 });
 
+app.get("/health", (req, res) => {
+  res.status(200).json({
+    status: "ok",
+    time: new Date(),
+  });
+});
+
 // Start Server
 app.listen(PORT, () => {
   console.log(`Server is running on port ${PORT}`);
