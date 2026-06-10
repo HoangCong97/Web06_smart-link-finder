@@ -583,11 +583,24 @@ app.put('/api/links/:id', authenticateJWT, async (req, res) => {
   }
 });
 
-app.get("/health", (req, res) => {
-  res.status(200).json({
-    status: "ok",
-    time: new Date(),
-  });
+app.get("/health", async (req, res) => {
+  try {
+    // Truy vấn siêu nhẹ tới DB để giữ kết nối database luôn ấm (warm)
+    await supabase.from('fl_users').select('id').limit(1);
+    res.status(200).json({
+      status: "ok",
+      database: "connected",
+      time: new Date(),
+    });
+  } catch (err) {
+    console.error("Healthcheck DB error:", err.message);
+    res.status(200).json({
+      status: "ok",
+      database: "disconnected",
+      error: err.message,
+      time: new Date(),
+    });
+  }
 });
 
 // Start Server
