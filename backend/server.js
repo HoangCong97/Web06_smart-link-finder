@@ -216,6 +216,42 @@ async function checkLogsTable() {
 }
 checkLogsTable();
 
+// Tự động dọn dẹp các bản ghi nhật ký hoạt động cũ hơn 1 tháng (30 ngày)
+async function autoPruneLogs() {
+  try {
+    const oneMonthAgo = new Date();
+    oneMonthAgo.setMonth(oneMonthAgo.getMonth() - 1);
+    const oneMonthAgoISO = oneMonthAgo.toISOString();
+
+    console.log(`Tiến hành tự động dọn dẹp nhật ký cũ hơn 1 tháng (trước ngày ${oneMonthAgo.toLocaleDateString('vi-VN')})...`);
+    
+    // Xóa các logs có created_at nhỏ hơn 1 tháng trước
+    const { error } = await supabase
+      .from('fl_logs')
+      .delete()
+      .lt('created_at', oneMonthAgoISO);
+
+    if (error) {
+      if (error.code === 'PGRST205' || error.message.includes('fl_logs') || error.message.includes('relation "public.fl_logs" does not exist')) {
+        // Bảng fl_logs chưa tồn tại, bỏ qua cảnh báo
+      } else {
+        console.error('Lỗi khi tự động dọn dẹp nhật ký cũ:', error.message);
+      }
+    } else {
+      console.log('Tự động dọn dẹp nhật ký cũ hoàn tất.');
+    }
+  } catch (err) {
+    console.error('Lỗi khi tự động dọn dẹp nhật ký cũ:', err);
+  }
+}
+
+// Chạy dọn dẹp logs khi server khởi động
+autoPruneLogs();
+
+// Chạy dọn dẹp logs định kỳ mỗi 24 giờ
+setInterval(autoPruneLogs, 24 * 60 * 60 * 1000);
+
+
 // Initialize Gemini Client
 const geminiApiKey = process.env.GEMINI_API_KEY;
 if (!geminiApiKey) {

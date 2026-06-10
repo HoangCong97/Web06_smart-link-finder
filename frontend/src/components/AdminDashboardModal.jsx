@@ -34,6 +34,7 @@ const AdminDashboardModal = ({ isOpen, onClose }) => {
   const [tempSearchFilter, setTempSearchFilter] = useState('');
   const [usernameFilter, setUsernameFilter] = useState('');
   const [dateFilter, setDateFilter] = useState('');
+  const [logsLimit, setLogsLimit] = useState(50);
   const searchTimeoutRef = useRef(null);
 
   // Fetch managers logic
@@ -80,7 +81,7 @@ const AdminDashboardModal = ({ isOpen, onClose }) => {
         search: searchFilter,
         username: usernameFilter,
         date: dateFilter,
-        limit: 15,
+        limit: logsLimit,
         offset: currentOffset
       });
       if (reset) {
@@ -118,7 +119,7 @@ const AdminDashboardModal = ({ isOpen, onClose }) => {
     if (isOpen && activeTab === 'logs') {
       fetchLogs(true);
     }
-  }, [actionTypeFilter, searchFilter, usernameFilter, dateFilter]);
+  }, [actionTypeFilter, searchFilter, usernameFilter, dateFilter, logsLimit]);
 
   // Handle live search filter typing with debounce
   const handleSearchChange = (e) => {
@@ -141,6 +142,7 @@ const AdminDashboardModal = ({ isOpen, onClose }) => {
     setActionTypeFilter('');
     setUsernameFilter('');
     setDateFilter('');
+    setLogsLimit(50);
   };
 
   if (!isOpen) return null;
@@ -676,12 +678,25 @@ const AdminDashboardModal = ({ isOpen, onClose }) => {
                   />
                 </div>
 
+                <div className="filter-item select-box">
+                  <select
+                    value={logsLimit}
+                    onChange={(e) => setLogsLimit(parseInt(e.target.value, 10))}
+                    className="input-field input-sm select-log-limit"
+                    title="Số bản ghi hiển thị"
+                  >
+                    <option value={50}>Hiển thị 50 dòng</option>
+                    <option value={100}>Hiển thị 100 dòng</option>
+                    <option value={200}>Hiển thị 200 dòng</option>
+                  </select>
+                </div>
+
                 <div className="filter-actions-row" style={{ display: 'flex', gap: '0.5rem', gridColumn: '1 / -1', justifyContent: 'flex-end', marginTop: '0.25rem' }}>
                   <button
                     onClick={handleClearFilters}
                     className="btn-secondary btn-sm flex-center"
                     title="Xóa bộ lọc"
-                    disabled={!actionTypeFilter && !searchFilter && !usernameFilter && !dateFilter}
+                    disabled={!actionTypeFilter && !searchFilter && !usernameFilter && !dateFilter && logsLimit === 50}
                     style={{ padding: '0.45rem 1rem' }}
                   >
                     <span>Làm mới bộ lọc</span>
