@@ -94,7 +94,7 @@ async function seedAdminUser() {
         console.log('Tài khoản admin mặc định đã được tạo thành công: admin / Congqt@97');
       }
     } else {
-      console.log('Tài khoản admin đã tồn tại trong hệ thống.');
+      console.log('');
     }
   } catch (err) {
     console.error('Lỗi khi seed tài khoản admin:', err);
@@ -577,6 +577,7 @@ app.post('/api/search', async (req, res) => {
 
     // 2. Tìm kiếm Vector Semantic Search (Theo ngữ nghĩa AI)
     console.log(`Generating embedding for search query: "${query}"`);
+    await logAction('GEMINI_EMBEDDING', 'Guest', `Tạo embedding tìm kiếm ngữ nghĩa: "${query}"`);
     const queryEmbedding = await getEmbedding(query);
     console.log(`Query embedding generated. Size: ${queryEmbedding.length}. Calling match_links...`);
 
@@ -747,7 +748,7 @@ app.get('/api/admin/health-check', authenticateJWT, requireRole(['admin']), asyn
       const start = Date.now();
       const cleanBaseUrl = deepseekBaseUrl.endsWith('/') ? deepseekBaseUrl.slice(0, -1) : deepseekBaseUrl;
       const endpoint = cleanBaseUrl.includes('/v1') ? `${cleanBaseUrl}/chat/completions` : `${cleanBaseUrl}/v1/chat/completions`;
-      
+
       const controller = new AbortController();
       const timeoutId = setTimeout(() => controller.abort(), 3000);
 
