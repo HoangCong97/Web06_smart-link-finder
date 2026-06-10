@@ -57,6 +57,78 @@ const requireRole = (roles) => {
   };
 };
 
+// Bộ lưu trữ in-memory cho rate limit
+const rateLimiters = {};
+
+// Tự động dọn dẹp định kỳ các địa chỉ IP không còn hoạt động để tránh rò rỉ RAM (memory leak)
+// Loại bỏ các timestamp cũ hơn 1 giờ, nếu IP không còn hoạt động thì xóa hoàn toàn
+setInterval(() => {
+  const now = Date.now();
+  for (const key in rateLimiters) {
+    rateLimiters[key] = rateLimiters[key].filter(timestamp => now - timestamp < 3600000);
+    if (rateLimiters[key].length === 0) {
+      delete rateLimiters[key];
+    }
+  }
+}, 10 * 60 * 1000); // Chạy mỗi 10 phút
+
+// Hàm factory tạo middleware giới hạn tần suất yêu cầu (Rate Limiter)
+const createRateLimiter = ({ windowMs, max, message }) => {
+  const limiterId = Math.random().toString(36).substring(2, 9);
+  return (req, res, next) => {
+    // Lấy IP của Client (hỗ trợ proxy nếu có)
+    const ip = req.headers['x-forwarded-for'] || req.socket.remoteAddress || 'unknown-ip';
+    const key = `${limiterId}:${ip}`;
+    const now = Date.now();
+
+    if (!rateLimiters[key]) {
+      rateLimiters[key] = [];
+    }
+
+    // Lọc lại chỉ giữ các request nằm trong khung thời gian windowMs gần nhất
+    rateLimiters[key] = rateLimiters[key].filter(timestamp => now - timestamp < windowMs);
+
+    if (rateLimiters[key].length >= max) {
+      return res.status(429).json({ error: message });
+    }
+
+    // Ghi nhận request mới
+    rateLimiters[key].push(now);
+    next();
+  };
+};
+
+// Khởi tạo các rate limiter cụ thể
+const loginLimiter = createRateLimiter({
+  windowMs: 60 * 1000,
+  max: 10,
+  message: 'Yêu cầu đăng nhập quá thường xuyên. Vui lòng thử lại sau 1 phút.'
+});
+
+const createLinkLimiter = createRateLimiter({
+  windowMs: 60 * 1000,
+  max: 10,
+  message: 'Yêu cầu tạo liên kết quá thường xuyên. Vui lòng thử lại sau 1 phút.'
+});
+
+const analyzeLimiter = createRateLimiter({
+  windowMs: 60 * 1000,
+  max: 5,
+  message: 'Yêu cầu phân tích văn bản quá thường xuyên. Vui lòng thử lại sau 1 phút.'
+});
+
+const searchLimiter = createRateLimiter({
+  windowMs: 60 * 1000,
+  max: 15,
+  message: 'Yêu cầu tìm kiếm quá thường xuyên. Vui lòng thử lại sau 1 phút.'
+});
+
+const clickLimiter = createRateLimiter({
+  windowMs: 60 * 1000,
+  max: 30,
+  message: 'Yêu cầu truy cập liên kết quá thường xuyên. Vui lòng thử lại sau 1 phút.'
+});
+
 // Hàm khởi tạo tài khoản Admin mặc định
 async function seedAdminUser() {
   try {
@@ -184,7 +256,7 @@ async function getEmbedding(text) {
 // Routes
 
 // Auth Route: Login
-app.post('/api/auth/login', async (req, res) => {
+app.post('/api/auth/login', loginLimiter, async (req, res) => {
   const { username, password } = req.body;
 
   if (!username || !password) {
@@ -398,7 +470,7 @@ app.get('/api/links', async (req, res) => {
 });
 
 // 2. Create new link with AI title embedding
-app.post('/api/links', authenticateJWT, async (req, res) => {
+app.post('/api/links', authenticateJWT, createLinkLimiter, async (req, res) => {
   const { url, title, content, deadline } = req.body;
 
   if (!url) {
@@ -438,7 +510,7 @@ app.post('/api/links', authenticateJWT, async (req, res) => {
 });
 
 // 2.5 Analyze raw text to extract and create a link with embedding using DeepSeek V4 Flash
-app.post('/api/links/analyze', authenticateJWT, async (req, res) => {
+app.post('/api/links/analyze', authenticateJWT, analyzeLimiter, async (req, res) => {
   const { rawText } = req.body;
 
   if (!rawText) {
@@ -541,7 +613,7 @@ Text to analyze:
 });
 
 // 3. Search links semantically using vector similarity merged with FTS
-app.post('/api/search', async (req, res) => {
+app.post('/api/search', searchLimiter, async (req, res) => {
   const { query, threshold, limit } = req.body;
 
   if (!query) {
@@ -673,7 +745,7 @@ app.put('/api/links/:id', authenticateJWT, async (req, res) => {
 });
 
 // POST /api/links/:id/click (Tăng số lượt click khi truy cập liên kết)
-app.post('/api/links/:id/click', async (req, res) => {
+app.post('/api/links/:id/click', clickLimiter, async (req, res) => {
   const { id } = req.params;
   try {
     // Lấy số lượt click hiện tại
