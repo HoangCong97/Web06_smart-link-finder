@@ -11,3 +11,12 @@ html, body {
   width: 100%;
   min-height: 100vh;
 }
+
+/* Ngăn iOS Safari tự động phóng to (auto-zoom) khi focus vào ô nhập liệu */
+@media screen and (max-width: 768px) {
+  input,
+  select,
+  textarea {
+    font-size: 16px !important;
+  }
+}
