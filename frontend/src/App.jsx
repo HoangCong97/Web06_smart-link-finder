@@ -1,16 +1,18 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, Suspense } from 'react';
 import { Sparkles, Database, RefreshCw, AlertTriangle, HelpCircle, LogIn, LogOut, Users, Plus, Shield, Key } from 'lucide-react';
 import LinkForm from './components/LinkForm';
 import SearchBar from './components/SearchBar';
 import LinkCard from './components/LinkCard';
 import Loader from './components/Loader';
-import LoginModal from './components/LoginModal';
-import AdminDashboardModal from './components/AdminDashboardModal';
-import EditLinkModal from './components/EditLinkModal';
-import ChangePasswordModal from './components/ChangePasswordModal';
-import LinkDetailModal from './components/LinkDetailModal';
 import { api } from './services/api';
 import './App.css';
+
+const LoginModal = React.lazy(() => import('./components/LoginModal'));
+const AdminDashboardModal = React.lazy(() => import('./components/AdminDashboardModal'));
+const EditLinkModal = React.lazy(() => import('./components/EditLinkModal'));
+const ChangePasswordModal = React.lazy(() => import('./components/ChangePasswordModal'));
+const LinkDetailModal = React.lazy(() => import('./components/LinkDetailModal'));
+
 
 function App() {
   const [links, setLinks] = useState([]);
@@ -297,11 +299,15 @@ function App() {
           </button>
         </div>
         
-        <LoginModal
-          isOpen={isLoginModalOpen}
-          onClose={() => setIsLoginModalOpen(false)}
-          onLoginSuccess={handleLoginSuccess}
-        />
+        {isLoginModalOpen && (
+          <Suspense fallback={null}>
+            <LoginModal
+              isOpen={isLoginModalOpen}
+              onClose={() => setIsLoginModalOpen(false)}
+              onLoginSuccess={handleLoginSuccess}
+            />
+          </Suspense>
+        )}
       </div>
     );
   }
@@ -545,36 +551,56 @@ function App() {
         </div>
 
         {/* Auth & Admin Modals */}
-        <LoginModal
-          isOpen={isLoginModalOpen}
-          onClose={() => setIsLoginModalOpen(false)}
-          onLoginSuccess={handleLoginSuccess}
-        />
+        {isLoginModalOpen && (
+          <Suspense fallback={null}>
+            <LoginModal
+              isOpen={isLoginModalOpen}
+              onClose={() => setIsLoginModalOpen(false)}
+              onLoginSuccess={handleLoginSuccess}
+            />
+          </Suspense>
+        )}
 
-        <AdminDashboardModal
-          isOpen={isManagerModalOpen}
-          onClose={() => setIsManagerModalOpen(false)}
-        />
+        {isManagerModalOpen && (
+          <Suspense fallback={null}>
+            <AdminDashboardModal
+              isOpen={isManagerModalOpen}
+              onClose={() => setIsManagerModalOpen(false)}
+            />
+          </Suspense>
+        )}
 
-        <ChangePasswordModal
-          isOpen={isChangePasswordOpen}
-          onClose={() => setIsChangePasswordOpen(false)}
-        />
+        {isChangePasswordOpen && (
+          <Suspense fallback={null}>
+            <ChangePasswordModal
+              isOpen={isChangePasswordOpen}
+              onClose={() => setIsChangePasswordOpen(false)}
+            />
+          </Suspense>
+        )}
 
-        <EditLinkModal
-          isOpen={editingLink !== null}
-          onClose={() => setEditingLink(null)}
-          link={editingLink}
-          onLinkUpdated={handleLinkUpdated}
-        />
+        {editingLink !== null && (
+          <Suspense fallback={null}>
+            <EditLinkModal
+              isOpen={editingLink !== null}
+              onClose={() => setEditingLink(null)}
+              link={editingLink}
+              onLinkUpdated={handleLinkUpdated}
+            />
+          </Suspense>
+        )}
 
-        <LinkDetailModal
-          isOpen={viewingLink !== null}
-          onClose={() => setViewingLink(null)}
-          link={viewingLink}
-          onTrackClick={handleLinkClick}
-          user={user}
-        />
+        {viewingLink !== null && (
+          <Suspense fallback={null}>
+            <LinkDetailModal
+              isOpen={viewingLink !== null}
+              onClose={() => setViewingLink(null)}
+              link={viewingLink}
+              onTrackClick={handleLinkClick}
+              user={user}
+            />
+          </Suspense>
+        )}
       </div>
     </>
   );
