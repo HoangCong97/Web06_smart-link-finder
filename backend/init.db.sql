@@ -9,6 +9,14 @@ create table public.FL_links (
     created_at timestamp with time zone default timezone ('utc'::text, now()) not null
 );
 
+-- Tạo bảng lưu nhật ký click chi tiết của liên kết phục vụ tính độ hot
+CREATE TABLE IF NOT EXISTS public.fl_link_clicks (
+    id bigint GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+    link_id bigint REFERENCES public.fl_links(id) ON DELETE CASCADE,
+    clicked_at timestamp with time zone DEFAULT timezone('utc'::text, now()) NOT NULL
+);
+
+
 -- Tạo hàm tìm kiếm bằng thuật toán Cosine Distance
 create or replace function match_links (
   query_embedding vector(768),

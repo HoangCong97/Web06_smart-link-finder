@@ -389,8 +389,24 @@ async function autoPruneLogs() {
     } else {
       console.log('Tự động dọn dẹp nhật ký cũ hoàn tất.');
     }
+
+    // Xóa các clicks cũ hơn 3 ngày trong bảng fl_link_clicks phục vụ đếm độ hot
+    const pruneClicksDate = new Date();
+    pruneClicksDate.setDate(pruneClicksDate.getDate() - 3);
+    const { error: clicksPruneError } = await supabase
+      .from('fl_link_clicks')
+      .delete()
+      .lt('clicked_at', pruneClicksDate.toISOString());
+
+    if (clicksPruneError) {
+      if (clicksPruneError.code !== 'PGRST205' && !clicksPruneError.message.includes('relation "public.fl_link_clicks" does not exist')) {
+        console.error('Lỗi khi tự động dọn dẹp click cũ:', clicksPruneError.message);
+      }
+    } else {
+      console.log('Tự động dọn dẹp click cũ (> 3 ngày) hoàn tất.');
+    }
   } catch (err) {
-    console.error('Lỗi khi tự động dọn dẹp nhật ký cũ:', err);
+    console.error('Lỗi khi tự động dọn dẹp nhật ký và click cũ:', err);
   }
 }
 
@@ -699,16 +715,155 @@ app.put('/api/admin/settings', authenticateJWT, requireRole(['admin']), async (r
   }
 });
 
-// 1. Get all links
+// 1. Get all links sorted by priority tiers
 app.get('/api/links', optionalJWT, maintenanceModeCheck, checkPermission('view_links'), async (req, res) => {
   try {
-    const { data, error } = await supabase
+    // A. Lấy tất cả các liên kết từ Database
+    const { data: links, error: linksError } = await supabase
       .from('fl_links')
-      .select('id, url, title, content, deadline, click_count, created_at')
-      .order('created_at', { ascending: false });
+      .select('id, url, title, content, deadline, click_count, created_at');
 
-    if (error) throw error;
-    res.json(data);
+    if (linksError) throw linksError;
+
+    // B. Lấy các clicks trong 3 ngày qua để tính toán độ hot
+    const threeDaysAgo = new Date();
+    threeDaysAgo.setDate(threeDaysAgo.getDate() - 3);
+
+    const { data: clicksData, error: clicksError } = await supabase
+      .from('fl_link_clicks')
+      .select('link_id')
+      .gte('clicked_at', threeDaysAgo.toISOString());
+
+    // Nếu bảng fl_link_clicks chưa được tạo (lỗi chưa chạy migration), gán clicksData rỗng để không bị sập API
+    const isTableMissing = clicksError && (
+      clicksError.message.includes('relation "public.fl_link_clicks" does not exist') ||
+      clicksError.message.includes('fl_link_clicks') ||
+      clicksError.message.includes('schema cache') ||
+      clicksError.code === 'PGRST205'
+    );
+    const safeClicksData = isTableMissing ? [] : clicksData || [];
+    
+    if (clicksError && !isTableMissing) {
+      throw clicksError;
+    }
+
+    const clicksMap = {};
+    safeClicksData.forEach(row => {
+      clicksMap[row.link_id] = (clicksMap[row.link_id] || 0) + 1;
+    });
+
+    // C. Phân chia Tiers và tính toán các điều kiện sắp xếp
+    const now = new Date();
+
+    const isWithinLastHour = (dateStr) => {
+      const d = new Date(dateStr);
+      return (now - d) <= 60 * 60 * 1000; // 1 giờ = 3,600,000 ms
+    };
+
+    const linksWithTiers = links.map(link => {
+      const clicks3d = clicksMap[link.id] || 0;
+      const totalClicks = link.click_count || 0;
+      let tier = 7; // Mặc định là Tier 7: Link không thời hạn và chưa click
+
+      // Tính toán điều kiện hết hạn trước để phục vụ Tier 1, Tier 4, Tier 5, Tier 8
+      let hasDeadline = false;
+      let isExpired = false;
+      let diffDays = 0;
+      let deadlineTime = null;
+
+      if (link.deadline) {
+        hasDeadline = true;
+        deadlineTime = new Date(link.deadline);
+        const diffTime = deadlineTime - now;
+        diffDays = diffTime / (1000 * 60 * 60 * 24);
+        isExpired = deadlineTime <= now;
+      }
+
+      // Phân bổ Tier
+      if (hasDeadline && !isExpired && diffDays <= 2) {
+        tier = 1; // Tier 1: Link sắp hết hạn (còn <= 2 ngày)
+      } else if (clicks3d > 0) {
+        tier = 2; // Tier 2: Link hot 3 ngày gần đây
+      } else if (isWithinLastHour(link.created_at)) {
+        tier = 3; // Tier 3: Link mới thêm trong 1 giờ
+      } else if (hasDeadline) {
+        if (!isExpired) {
+          tier = 5; // Tier 5: Link có thời hạn còn hạn dài (> 2 ngày)
+        } else {
+          // Đã hết hạn
+          const expiredTime = now - deadlineTime;
+          const expiredDays = expiredTime / (1000 * 60 * 60 * 24);
+          if (expiredDays <= 1) {
+            tier = 4; // Tier 4: Link mới hết hạn (<= 1 ngày)
+          } else {
+            tier = 8; // Tier 8: Link quá hạn (> 1 ngày)
+          }
+        }
+      } else {
+        // Không có deadline
+        if (totalClicks > 0) {
+          tier = 6; // Tier 6: Link click nhiều không thời hạn
+        } else {
+          tier = 7; // Tier 7: Link không thời hạn
+        }
+      }
+
+      return {
+        ...link,
+        tier,
+        clicks_3d: clicks3d
+      };
+    });
+
+    // D. Sắp xếp theo các tầng (Tier) và quy tắc sắp xếp phụ
+    linksWithTiers.sort((a, b) => {
+      if (a.tier !== b.tier) {
+        return a.tier - b.tier; // Tier số nhỏ hơn xếp trước
+      }
+
+      // Sắp xếp phụ trong cùng một Tier
+      if (a.tier === 1) {
+        // Tier 1: Sắp hết hạn -> deadline tăng dần (gần hết hạn nhất lên trước)
+        return new Date(a.deadline) - new Date(b.deadline);
+      }
+      if (a.tier === 2) {
+        // Tier 2: Hot 3 ngày -> clicks_3d giảm dần, sau đó ngày tạo giảm dần
+        if (b.clicks_3d !== a.clicks_3d) {
+          return b.clicks_3d - a.clicks_3d;
+        }
+        return new Date(b.created_at) - new Date(a.created_at);
+      }
+      if (a.tier === 3) {
+        // Tier 3: Link mới thêm -> ngày tạo giảm dần
+        return new Date(b.created_at) - new Date(a.created_at);
+      }
+      if (a.tier === 4) {
+        // Tier 4: Mới hết hạn -> deadline giảm dần (mới hết hạn nhất lên trước)
+        return new Date(b.deadline) - new Date(a.deadline);
+      }
+      if (a.tier === 5) {
+        // Tier 5: Còn hạn dài -> deadline tăng dần (gần hết hạn nhất lên trước)
+        return new Date(a.deadline) - new Date(b.deadline);
+      }
+      if (a.tier === 6) {
+        // Tier 6: Click nhiều không hạn -> click_count giảm dần, sau đó ngày tạo giảm dần
+        if (b.click_count !== a.click_count) {
+          return b.click_count - a.click_count;
+        }
+        return new Date(b.created_at) - new Date(a.created_at);
+      }
+      if (a.tier === 7) {
+        // Tier 7: Không hạn -> ngày tạo giảm dần
+        return new Date(b.created_at) - new Date(a.created_at);
+      }
+      if (a.tier === 8) {
+        // Tier 8: Quá hạn -> deadline giảm dần (mới quá hạn nhất lên trước)
+        return new Date(b.deadline) - new Date(a.deadline);
+      }
+      return 0;
+    });
+
+    res.json(linksWithTiers);
   } catch (error) {
     console.error('Error fetching links:', error);
     res.status(500).json({ error: error.message || 'Internal server error' });
@@ -1040,6 +1195,15 @@ app.post('/api/links/:id/click', optionalJWT, maintenanceModeCheck, checkPermiss
       .select('id, click_count');
 
     if (updateError) throw updateError;
+
+    // Ghi nhận nhật ký click vào bảng fl_link_clicks để phục vụ tính độ hot
+    const { error: clickLogError } = await supabase
+      .from('fl_link_clicks')
+      .insert([{ link_id: id }]);
+    
+    if (clickLogError) {
+      console.error('Error inserting click log:', clickLogError);
+    }
     
     const clickUsername = req.user ? req.user.username : 'Guest';
     await logAction('CLICK_LINK', clickUsername, `Click truy cập liên kết ID: ${id}. Tổng lượt click: ${newClickCount}`);

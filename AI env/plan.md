@@ -55,12 +55,12 @@ Khi hiển thị danh sách, hệ thống sẽ tự động tính toán và phâ
 
 | Tầng (Tier) | Mô tả Nhóm liên kết | Điều kiện xác định | Thứ tự sắp xếp trong cùng tầng |
 | :---: | :--- | :--- | :--- |
-| **Tier 1** | Link mới thêm trong ngày | `created_at` trong vòng 24 giờ qua | `created_at` giảm dần (mới nhất lên trước) |
+| **Tier 1** | Link sắp hết hạn | Có deadline và `0 < deadline - hiện tại <= 2 ngày` | `deadline` tăng dần (sắp hết hạn nhất lên trước) |
 | **Tier 2** | Link hot 3 ngày gần đây | Số click trong 3 ngày qua `clicks_3d > 0` | Số click `clicks_3d` giảm dần |
-| **Tier 3** | Link sắp hết hạn | Có deadline và `0 < deadline - hiện tại <= 2 ngày` | `deadline` tăng dần (sắp hết hạn nhất lên trước) |
+| **Tier 3** | Link mới thêm| `created_at` trong vòng 1 giờ qua | `created_at` giảm dần (mới nhất lên trước) |
 | **Tier 4** | Link mới hết hạn | Có deadline và `0 <= hiện tại - deadline <= 1 ngày` | `deadline` giảm dần (mới hết hạn nhất lên trước) |
-| **Tier 5** | Link click nhiều không thời hạn | Không deadline và tổng `click_count > 0` | `click_count` giảm dần |
-| **Tier 6** | Link có thời hạn còn hạn dài | Có deadline và `deadline - hiện tại > 2 ngày` | `deadline` tăng dần (sắp hết hạn nhất lên trước) |
+| **Tier 5** | Link có thời hạn còn hạn dài | Có deadline và `deadline - hiện tại > 2 ngày` | `deadline` tăng dần (sắp hết hạn nhất lên trước) |
+| **Tier 6** | Link click nhiều không thời hạn | Không deadline và tổng `click_count > 0` | `click_count` giảm dần |
 | **Tier 7** | Link không thời hạn | Không deadline và tổng `click_count = 0` | `created_at` giảm dần |
 | **Tier 8** | Link quá hạn | Có deadline và `hiện tại - deadline > 1 ngày` | `deadline` giảm dần (mới quá hạn lên trước) |
 
