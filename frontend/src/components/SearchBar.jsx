@@ -1,10 +1,22 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Search, SlidersHorizontal, Sparkles, X } from 'lucide-react';
 
-const SearchBar = ({ onSearch, onClear, isLoading }) => {
+const SearchBar = ({ onSearch, onClear, isLoading, defaultThreshold = 0.3, defaultLimit = 9 }) => {
   const [query, setQuery] = useState('');
-  const [threshold, setThreshold] = useState(0.6);
-  const [limit, setLimit] = useState(9);
+  const [threshold, setThreshold] = useState(defaultThreshold);
+  const [limit, setLimit] = useState(defaultLimit);
+
+  useEffect(() => {
+    if (defaultThreshold !== undefined) {
+      setThreshold(defaultThreshold);
+    }
+  }, [defaultThreshold]);
+
+  useEffect(() => {
+    if (defaultLimit !== undefined) {
+      setLimit(defaultLimit);
+    }
+  }, [defaultLimit]);
   const [showFilters, setShowFilters] = useState(false);
 
   const handleSubmit = (e) => {

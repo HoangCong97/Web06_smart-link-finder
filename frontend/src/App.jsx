@@ -20,6 +20,14 @@ function App() {
   const [error, setError] = useState('');
   const [connectionWarning, setConnectionWarning] = useState(false);
 
+  // Cấu hình hệ thống động tải từ server
+  const [publicSettings, setPublicSettings] = useState({
+    guest_permissions: ["search_links", "view_links", "click_link"],
+    maintenance_mode: false,
+    default_search_limit: 9,
+    default_search_threshold: 0.3
+  });
+
   // Authentication & Modal States
   const [user, setUser] = useState(() => {
     const saved = localStorage.getItem('user');
@@ -32,8 +40,24 @@ function App() {
   const [showLinkForm, setShowLinkForm] = useState(false);
   const [viewingLink, setViewingLink] = useState(null);
 
+  // Tải cài đặt hệ thống công khai
+  const fetchPublicSettings = async () => {
+    try {
+      const data = await api.getPublicSettings();
+      setPublicSettings(data);
+    } catch (err) {
+      console.error('Lỗi khi tải cài đặt hệ thống:', err);
+    }
+  };
+
   // Fetch all links on load
   const fetchLinks = async () => {
+    // Nếu khách không có quyền xem, không gọi tải link (tránh lỗi 403 thừa)
+    const savedUser = localStorage.getItem('user') ? JSON.parse(localStorage.getItem('user')) : null;
+    if (!savedUser && publicSettings && publicSettings.guest_permissions && !publicSettings.guest_permissions.includes('view_links')) {
+      return;
+    }
+
     setIsLoading(true);
     setError('');
     setConnectionWarning(false);
@@ -42,16 +66,41 @@ function App() {
       setLinks(data);
     } catch (err) {
       console.error(err);
-      setError('Lỗi kết nối: Hãy đảm bảo Backend Server đang chạy.');
-      setConnectionWarning(true);
+      
+      // Tự động đăng xuất nếu token bị hết hạn hoặc không hợp lệ để tránh kẹt trong trạng thái lỗi
+      const isAuthError = err.message && (
+        err.message.toLowerCase().includes('token') || 
+        err.message.toLowerCase().includes('hết hạn') || 
+        err.message.toLowerCase().includes('xác thực') ||
+        err.message.toLowerCase().includes('đăng nhập')
+      );
+      
+      if (isAuthError) {
+        localStorage.removeItem('token');
+        localStorage.removeItem('user');
+        setUser(null);
+        setToken(null);
+      }
+
+      setError(err.message || 'Lỗi kết nối: Hãy đảm bảo Backend Server đang chạy.');
+      // Chỉ bật cảnh báo kết nối nếu thực sự mất kết nối mạng (Failed to fetch)
+      if (err.message && (err.message.includes('Failed to fetch') || err.message.includes('network') || err.message.includes('Failed to connect'))) {
+        setConnectionWarning(true);
+      }
     } finally {
       setIsLoading(false);
     }
   };
 
+  // Lấy cấu hình hệ thống khi mount
+  useEffect(() => {
+    fetchPublicSettings();
+  }, []);
+
+  // Tải danh sách liên kết mỗi khi token hoặc cấu hình phân quyền khách thay đổi
   useEffect(() => {
     fetchLinks();
-  }, []);
+  }, [token, publicSettings.guest_permissions]);
 
   // Handle adding a link
   const handleLinkAdded = (newLink) => {
@@ -103,6 +152,7 @@ function App() {
   const handleLoginSuccess = (userData, userToken) => {
     setUser(userData);
     setToken(userToken);
+    fetchPublicSettings();
   };
 
   // Handle logout
@@ -151,8 +201,93 @@ function App() {
 
   const isFormVisible = user && showLinkForm;
 
+  if (publicSettings && publicSettings.maintenance_mode && (!user || user.role !== 'admin')) {
+    return (
+      <div className="maintenance-overlay" style={{
+        position: 'fixed',
+        top: 0, left: 0, right: 0, bottom: 0,
+        background: 'linear-gradient(135deg, #0f172a 0%, #1e1b4b 100%)',
+        zIndex: 9999,
+        display: 'flex',
+        flexDirection: 'column',
+        justifyContent: 'center',
+        alignItems: 'center',
+        color: '#fff',
+        fontFamily: 'var(--font-body)',
+        padding: '2rem',
+        textAlign: 'center'
+      }}>
+        <div className="glass-panel" style={{
+          maxWidth: '500px',
+          padding: '3rem 2rem',
+          borderRadius: '16px',
+          background: 'rgba(255, 255, 255, 0.03)',
+          backdropFilter: 'blur(20px)',
+          border: '1px solid rgba(139, 92, 246, 0.15)',
+          boxShadow: '0 20px 50px rgba(0,0,0,0.3)',
+          display: 'flex',
+          flexDirection: 'column',
+          alignItems: 'center'
+        }}>
+          <div style={{
+            background: 'rgba(139, 92, 246, 0.1)',
+            width: '64px', height: '64px',
+            borderRadius: '50%',
+            display: 'flex',
+            justifyContent: 'center',
+            alignItems: 'center',
+            marginBottom: '1.5rem',
+            border: '1px solid rgba(139, 92, 246, 0.3)'
+          }}>
+            <AlertTriangle size={32} className="icon-bounce" style={{ color: '#f59e0b' }} />
+          </div>
+          <h2 className="text-gradient" style={{
+            fontFamily: 'var(--font-title)',
+            fontSize: '1.75rem',
+            fontWeight: 800,
+            marginBottom: '1rem'
+          }}>Hệ thống đang bảo trì</h2>
+          <p style={{ color: '#94a3b8', lineHeight: 1.6, marginBottom: '2rem' }}>
+            Chúng tôi đang nâng cấp hệ thống để mang lại trải nghiệm tốt nhất cho bạn. Vui lòng quay lại sau ít phút.
+          </p>
+          <div style={{ fontSize: '0.85rem', color: '#64748b', marginBottom: '1.25rem' }}>
+            Nếu bạn là Quản trị viên, vui lòng đăng nhập để truy cập hệ thống.
+          </div>
+          <button 
+            onClick={() => setIsLoginModalOpen(true)}
+            className="btn-primary" 
+            style={{ padding: '0.6rem 2rem', width: 'auto' }}
+          >
+            Đăng nhập Admin
+          </button>
+        </div>
+        
+        <LoginModal
+          isOpen={isLoginModalOpen}
+          onClose={() => setIsLoginModalOpen(false)}
+          onLoginSuccess={handleLoginSuccess}
+        />
+      </div>
+    );
+  }
+
   return (
     <>
+      {publicSettings && publicSettings.maintenance_mode && user && user.role === 'admin' && (
+        <div style={{
+          background: 'linear-gradient(90deg, #b91c1c 0%, #dc2626 100%)',
+          color: 'white',
+          textAlign: 'center',
+          padding: '0.4rem',
+          fontSize: '0.82rem',
+          fontWeight: 700,
+          letterSpacing: '0.5px',
+          boxShadow: '0 2px 10px rgba(0,0,0,0.1)',
+          zIndex: 999
+        }}>
+          ⚠️ HỆ THỐNG ĐANG BẬT CHẾ ĐỘ BẢO TRÌ - BẠN ĐANG DUYỆT VỚI QUYỀN ADMIN BYPASS
+        </div>
+      )}
       {/* Full width Premium Header Bar */}
       <header className="header-bar-full">
         <div className="header-inner">
@@ -242,11 +377,26 @@ function App() {
           <div className="main-column">
             {/* Search controls (Fixed/Sticky) */}
             <div className="sticky-search-container">
-              <SearchBar
-                onSearch={handleSearch}
-                onClear={handleClearSearch}
-                isLoading={isSearching}
-              />
+              {!user && publicSettings && publicSettings.guest_permissions && !publicSettings.guest_permissions.includes('search_links') ? (
+                <div className="glass-panel" style={{ padding: '1rem 1.5rem', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.5rem', color: 'var(--text-muted)', fontSize: '0.9rem', borderRadius: '12px' }}>
+                  <Shield size={16} className="text-warning" style={{ color: '#f59e0b' }} />
+                  <span>Chức năng tìm kiếm yêu cầu đăng nhập tài khoản.</span>
+                  <button 
+                    onClick={() => setIsLoginModalOpen(true)}
+                    style={{ background: 'none', border: 'none', color: 'var(--primary)', fontWeight: 600, cursor: 'pointer', padding: 0, textDecoration: 'underline' }}
+                  >
+                    Đăng nhập
+                  </button>
+                </div>
+              ) : (
+                <SearchBar
+                  onSearch={handleSearch}
+                  onClear={handleClearSearch}
+                  isLoading={isSearching}
+                  defaultThreshold={publicSettings.default_search_threshold}
+                  defaultLimit={publicSettings.default_search_limit}
+                />
+              )}
             </div>
 
             {/* Heading dynamic block */}
@@ -286,7 +436,25 @@ function App() {
             )}
 
             {/* Results State Management */}
-            {isSearching ? (
+            {!user && publicSettings && publicSettings.guest_permissions && !publicSettings.guest_permissions.includes('view_links') ? (
+              <div className="glass-panel empty-state" style={{ padding: '4rem 2rem' }}>
+                <div className="empty-state-icon-box" style={{ background: 'rgba(139, 92, 246, 0.05)', color: 'var(--primary)' }}>
+                  <Shield size={32} />
+                </div>
+                <h4 className="empty-state-title">Yêu Cầu Đăng Nhập</h4>
+                <p className="empty-state-desc" style={{ maxWidth: '400px', margin: '0.5rem auto 1.5rem auto' }}>
+                  Admin đã cấu hình yêu cầu đăng nhập để xem danh sách liên kết. Vui lòng đăng nhập tài khoản Manager hoặc Admin để tiếp tục.
+                </p>
+                <button
+                  onClick={() => setIsLoginModalOpen(true)}
+                  className="btn-primary flex-center gap-1.5"
+                  style={{ margin: '0 auto', padding: '0.55rem 2rem' }}
+                >
+                  <LogIn size={14} />
+                  <span>Đăng nhập ngay</span>
+                </button>
+              </div>
+            ) : isSearching ? (
               <div className="glass-panel loader-wrapper-panel">
                 <Loader message="AI đang giải mã câu hỏi & truy vấn cơ sở dữ liệu vector..." />
               </div>

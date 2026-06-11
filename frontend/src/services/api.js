@@ -125,4 +125,12 @@ export const api = {
     if (params.offset) query.append('offset', params.offset);
     return request(`/api/admin/logs?${query.toString()}`);
   },
+
+  // --- Settings APIs ---
+  getPublicSettings: () => request('/api/settings'),
+  getAdminSettings: () => request('/api/admin/settings'),
+  updateAdminSettings: (settings) => request('/api/admin/settings', {
+    method: 'PUT',
+    body: JSON.stringify(settings),
+  }),
 };

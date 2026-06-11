@@ -27,7 +27,72 @@ if (!supabaseUrl || !supabaseKey || supabaseUrl.includes('your-supabase-url')) {
 }
 const supabase = createClient(supabaseUrl, supabaseKey);
 
-// Middleware xác thực JWT
+// Biến cache lưu trữ cấu hình hệ thống động trong RAM
+let systemSettings = {
+  rate_limiting: {
+    enabled: true,
+    login_limit: 10,
+    create_link_limit: 10,
+    analyze_limit: 5,
+    search_limit: 15,
+    click_limit: 30
+  },
+  permissions: {
+    guest: ["search_links", "view_links", "click_link"],
+    manager: ["create_link", "edit_link", "delete_link", "analyze_link"]
+  },
+  system: {
+    maintenance_mode: false,
+    log_retention_days: 30,
+    default_search_limit: 9,
+    default_search_threshold: 0.3
+  }
+};
+
+// Hàm tải cấu hình hệ thống từ Supabase fl_settings
+async function loadSystemSettings() {
+  try {
+    const { data, error } = await supabase
+      .from('fl_settings')
+      .select('*');
+
+    if (error) {
+      if (error.code === 'PGRST205' || error.message.includes('relation "public.fl_settings" does not exist')) {
+        console.warn('WARNING: Bảng "fl_settings" chưa tồn tại. Hãy chạy lệnh trong backend/init.db.sql để khởi tạo bảng.');
+      } else {
+        console.error('Lỗi tải cấu hình hệ thống:', error.message);
+      }
+      return;
+    }
+
+    if (data && data.length > 0) {
+      data.forEach(item => {
+        if (item.key === 'rate_limiting') {
+          systemSettings.rate_limiting = { ...systemSettings.rate_limiting, ...item.value };
+        } else if (item.key === 'permissions') {
+          systemSettings.permissions = { ...systemSettings.permissions, ...item.value };
+        } else if (item.key === 'system') {
+          systemSettings.system = { ...systemSettings.system, ...item.value };
+        }
+      });
+      console.log('Đã tải và đồng bộ cấu hình hệ thống động từ database.');
+    } else {
+      console.log('Bảng fl_settings rỗng. Tiến hành seed cấu hình mặc định...');
+      const seedPromises = Object.keys(systemSettings).map(key =>
+        supabase.from('fl_settings').insert({ key, value: systemSettings[key] })
+      );
+      await Promise.all(seedPromises);
+      console.log('Đã khởi tạo các cấu hình mặc định vào database.');
+    }
+  } catch (err) {
+    console.error('Lỗi khi kết nối hoặc đồng bộ fl_settings:', err);
+  }
+}
+
+// Chạy tải cấu hình khi server khởi động
+loadSystemSettings();
+
+// Middleware xác thực JWT bắt buộc
 const authenticateJWT = (req, res, next) => {
   const authHeader = req.headers.authorization;
 
@@ -47,7 +112,24 @@ const authenticateJWT = (req, res, next) => {
   }
 };
 
-// Middleware phân quyền
+// Middleware xác thực JWT tùy chọn (dành cho Guest và phân quyền động)
+const optionalJWT = (req, res, next) => {
+  const authHeader = req.headers.authorization;
+
+  if (authHeader) {
+    const token = authHeader.split(' ')[1]; // Bearer <token>
+    jwt.verify(token, jwtSecret, (err, user) => {
+      if (!err) {
+        req.user = user;
+      }
+      next();
+    });
+  } else {
+    next();
+  }
+};
+
+// Middleware phân quyền theo nhóm tĩnh cũ
 const requireRole = (roles) => {
   return (req, res, next) => {
     if (!req.user || !roles.includes(req.user.role)) {
@@ -55,6 +137,57 @@ const requireRole = (roles) => {
     }
     next();
   };
+};
+
+// Middleware phân quyền động theo cấu hình hệ thống
+const checkPermission = (permission) => {
+  return (req, res, next) => {
+    // 1. Admin luôn có đầy đủ mọi quyền hạn
+    if (req.user && req.user.role === 'admin') {
+      return next();
+    }
+
+    // Các quyền cơ bản mặc định mà Manager luôn được phép thực hiện (không bị chặn kể cả khi tắt đối với Khách)
+    const basicPermissions = ['view_links', 'search_links', 'click_link'];
+
+    // 2. Kiểm tra nếu là Manager
+    if (req.user && req.user.role === 'manager') {
+      const managerPerms = systemSettings.permissions.manager || [];
+      const guestPerms = systemSettings.permissions.guest || [];
+      if (
+        managerPerms.includes(permission) ||
+        guestPerms.includes(permission) ||
+        basicPermissions.includes(permission)
+      ) {
+        return next();
+      }
+      return res.status(403).json({ error: `Tài khoản Manager của bạn không có quyền thực hiện hành động này (${permission})` });
+    }
+
+    // 3. Kiểm tra nếu là Guest (Khách chưa đăng nhập)
+    if (!req.user) {
+      const guestPerms = systemSettings.permissions.guest || [];
+      if (guestPerms.includes(permission)) {
+        return next();
+      }
+      return res.status(403).json({ error: `Vui lòng đăng nhập để thực hiện hành động này.` });
+    }
+
+    return res.status(403).json({ error: 'Không xác định được quyền hạn truy cập' });
+  };
+};
+
+// Middleware kiểm tra chế độ bảo trì hệ thống
+const maintenanceModeCheck = (req, res, next) => {
+  // Chỉ chặn các yêu cầu nếu đang bật chế độ bảo trì
+  // Tài khoản Admin được bỏ qua (bypass) hoàn toàn chế độ bảo trì để xử lý sự cố
+  if (systemSettings.system.maintenance_mode) {
+    const isAdmin = req.user && req.user.role === 'admin';
+    if (!isAdmin) {
+      return res.status(503).json({ error: 'Hệ thống đang bảo trì. Vui lòng quay lại sau.' });
+    }
+  }
+  next();
 };
 
 // Bộ lưu trữ in-memory cho rate limit
@@ -72,10 +205,20 @@ setInterval(() => {
   }
 }, 10 * 60 * 1000); // Chạy mỗi 10 phút
 
-// Hàm factory tạo middleware giới hạn tần suất yêu cầu (Rate Limiter)
-const createRateLimiter = ({ windowMs, max, message }) => {
+// Hàm factory tạo middleware giới hạn tần suất yêu cầu (Rate Limiter) động
+const createRateLimiter = ({ windowMs, maxSettingKey, defaultMax, message }) => {
   const limiterId = Math.random().toString(36).substring(2, 9);
   return (req, res, next) => {
+    // 1. Kiểm tra nếu tính năng giới hạn tần suất bị tắt trên toàn hệ thống
+    if (!systemSettings.rate_limiting || !systemSettings.rate_limiting.enabled) {
+      return next();
+    }
+
+    // 2. Lấy giới hạn tối đa từ cấu hình động hoặc dùng mặc định
+    const max = (systemSettings.rate_limiting && systemSettings.rate_limiting[maxSettingKey]) !== undefined 
+      ? systemSettings.rate_limiting[maxSettingKey] 
+      : defaultMax;
+
     // Lấy IP của Client (hỗ trợ proxy nếu có)
     const ip = req.headers['x-forwarded-for'] || req.socket.remoteAddress || 'unknown-ip';
     const key = `${limiterId}:${ip}`;
@@ -85,7 +228,7 @@ const createRateLimiter = ({ windowMs, max, message }) => {
       rateLimiters[key] = [];
     }
 
-    // Lọc lại chỉ giữ các request nằm trong khung thời gian windowMs gần nhất
+    // Lọc lại chỉ giữ các request nằm trong khu thời gian windowMs gần nhất
     rateLimiters[key] = rateLimiters[key].filter(timestamp => now - timestamp < windowMs);
 
     if (rateLimiters[key].length >= max) {
@@ -98,34 +241,39 @@ const createRateLimiter = ({ windowMs, max, message }) => {
   };
 };
 
-// Khởi tạo các rate limiter cụ thể
+// Khởi tạo các rate limiter cụ thể đọc động theo cấu hình
 const loginLimiter = createRateLimiter({
   windowMs: 60 * 1000,
-  max: 10,
+  maxSettingKey: 'login_limit',
+  defaultMax: 10,
   message: 'Yêu cầu đăng nhập quá thường xuyên. Vui lòng thử lại sau 1 phút.'
 });
 
 const createLinkLimiter = createRateLimiter({
   windowMs: 60 * 1000,
-  max: 10,
+  maxSettingKey: 'create_link_limit',
+  defaultMax: 10,
   message: 'Yêu cầu tạo liên kết quá thường xuyên. Vui lòng thử lại sau 1 phút.'
 });
 
 const analyzeLimiter = createRateLimiter({
   windowMs: 60 * 1000,
-  max: 5,
+  maxSettingKey: 'analyze_limit',
+  defaultMax: 5,
   message: 'Yêu cầu phân tích văn bản quá thường xuyên. Vui lòng thử lại sau 1 phút.'
 });
 
 const searchLimiter = createRateLimiter({
   windowMs: 60 * 1000,
-  max: 15,
+  maxSettingKey: 'search_limit',
+  defaultMax: 15,
   message: 'Yêu cầu tìm kiếm quá thường xuyên. Vui lòng thử lại sau 1 phút.'
 });
 
 const clickLimiter = createRateLimiter({
   windowMs: 60 * 1000,
-  max: 30,
+  maxSettingKey: 'click_limit',
+  defaultMax: 30,
   message: 'Yêu cầu truy cập liên kết quá thường xuyên. Vui lòng thử lại sau 1 phút.'
 });
 
@@ -216,20 +364,21 @@ async function checkLogsTable() {
 }
 checkLogsTable();
 
-// Tự động dọn dẹp các bản ghi nhật ký hoạt động cũ hơn 1 tháng (30 ngày)
+// Tự động dọn dẹp các bản ghi nhật ký hoạt động cũ
 async function autoPruneLogs() {
   try {
-    const oneMonthAgo = new Date();
-    oneMonthAgo.setMonth(oneMonthAgo.getMonth() - 1);
-    const oneMonthAgoISO = oneMonthAgo.toISOString();
+    const retentionDays = (systemSettings.system && systemSettings.system.log_retention_days) || 30;
+    const pruneDate = new Date();
+    pruneDate.setDate(pruneDate.getDate() - retentionDays);
+    const pruneDateISO = pruneDate.toISOString();
 
-    console.log(`Tiến hành tự động dọn dẹp nhật ký cũ hơn 1 tháng (trước ngày ${oneMonthAgo.toLocaleDateString('vi-VN')})...`);
+    console.log(`Tiến hành tự động dọn dẹp nhật ký cũ hơn ${retentionDays} ngày (trước ngày ${pruneDate.toLocaleDateString('vi-VN')})...`);
     
-    // Xóa các logs có created_at nhỏ hơn 1 tháng trước
+    // Xóa các logs có created_at nhỏ hơn số ngày lưu giữ
     const { error } = await supabase
       .from('fl_logs')
       .delete()
-      .lt('created_at', oneMonthAgoISO);
+      .lt('created_at', pruneDateISO);
 
     if (error) {
       if (error.code === 'PGRST205' || error.message.includes('fl_logs') || error.message.includes('relation "public.fl_logs" does not exist')) {
@@ -489,8 +638,69 @@ app.delete('/api/users/:id', authenticateJWT, requireRole(['admin']), async (req
   }
 });
 
+// --- Settings APIs ---
+
+// GET /api/settings (Public settings for frontend initialization)
+app.get('/api/settings', async (req, res) => {
+  res.json({
+    guest_permissions: systemSettings.permissions.guest,
+    maintenance_mode: systemSettings.system.maintenance_mode,
+    default_search_limit: systemSettings.system.default_search_limit,
+    default_search_threshold: systemSettings.system.default_search_threshold
+  });
+});
+
+// GET /api/admin/settings (Admin-only: get all configuration)
+app.get('/api/admin/settings', authenticateJWT, requireRole(['admin']), async (req, res) => {
+  res.json(systemSettings);
+});
+
+// PUT /api/admin/settings (Admin-only: update configuration)
+app.put('/api/admin/settings', authenticateJWT, requireRole(['admin']), async (req, res) => {
+  const { rate_limiting, permissions, system } = req.body;
+
+  try {
+    const updates = [];
+
+    if (rate_limiting) {
+      systemSettings.rate_limiting = { ...systemSettings.rate_limiting, ...rate_limiting };
+      updates.push(
+        supabase
+          .from('fl_settings')
+          .upsert({ key: 'rate_limiting', value: systemSettings.rate_limiting })
+      );
+    }
+
+    if (permissions) {
+      systemSettings.permissions = { ...systemSettings.permissions, ...permissions };
+      updates.push(
+        supabase
+          .from('fl_settings')
+          .upsert({ key: 'permissions', value: systemSettings.permissions })
+      );
+    }
+
+    if (system) {
+      systemSettings.system = { ...systemSettings.system, ...system };
+      updates.push(
+        supabase
+          .from('fl_settings')
+          .upsert({ key: 'system', value: systemSettings.system })
+      );
+    }
+
+    await Promise.all(updates);
+    await logAction('UPDATE_SETTINGS', req.user.username, 'Cập nhật cấu hình hệ thống');
+
+    res.json({ success: true, settings: systemSettings });
+  } catch (err) {
+    console.error('Lỗi cập nhật cấu hình hệ thống:', err);
+    res.status(500).json({ error: err.message || 'Internal server error' });
+  }
+});
+
 // 1. Get all links
-app.get('/api/links', async (req, res) => {
+app.get('/api/links', optionalJWT, maintenanceModeCheck, checkPermission('view_links'), async (req, res) => {
   try {
     const { data, error } = await supabase
       .from('fl_links')
@@ -506,7 +716,7 @@ app.get('/api/links', async (req, res) => {
 });
 
 // 2. Create new link with AI title embedding
-app.post('/api/links', authenticateJWT, createLinkLimiter, async (req, res) => {
+app.post('/api/links', authenticateJWT, maintenanceModeCheck, checkPermission('create_link'), createLinkLimiter, async (req, res) => {
   const { url, title, content, deadline } = req.body;
 
   if (!url) {
@@ -546,7 +756,7 @@ app.post('/api/links', authenticateJWT, createLinkLimiter, async (req, res) => {
 });
 
 // 2.5 Analyze raw text to extract and create a link with embedding using DeepSeek V4 Flash
-app.post('/api/links/analyze', authenticateJWT, analyzeLimiter, async (req, res) => {
+app.post('/api/links/analyze', authenticateJWT, maintenanceModeCheck, checkPermission('analyze_link'), analyzeLimiter, async (req, res) => {
   const { rawText } = req.body;
 
   if (!rawText) {
@@ -649,15 +859,16 @@ Text to analyze:
 });
 
 // 3. Search links semantically using vector similarity merged with FTS
-app.post('/api/search', searchLimiter, async (req, res) => {
+app.post('/api/search', optionalJWT, maintenanceModeCheck, checkPermission('search_links'), searchLimiter, async (req, res) => {
   const { query, threshold, limit } = req.body;
 
   if (!query) {
     return res.status(400).json({ error: 'Search query is required' });
   }
 
-  const matchThreshold = threshold !== undefined ? parseFloat(threshold) : 0.3;
-  const matchLimit = limit !== undefined ? parseInt(limit, 10) : 10;
+  // Sử dụng cấu hình ngưỡng tương đồng và giới hạn kết quả mặc định từ hệ thống nếu client không gửi lên
+  const matchThreshold = threshold !== undefined ? parseFloat(threshold) : (systemSettings.system.default_search_threshold || 0.3);
+  const matchLimit = limit !== undefined ? parseInt(limit, 10) : (systemSettings.system.default_search_limit || 9);
 
   try {
     // 1. Tìm kiếm Full-Text Search (Khớp từ khóa trực tiếp)
@@ -685,7 +896,8 @@ app.post('/api/search', searchLimiter, async (req, res) => {
 
     // 2. Tìm kiếm Vector Semantic Search (Theo ngữ nghĩa AI)
     console.log(`Generating embedding for search query: "${query}"`);
-    await logAction('GEMINI_EMBEDDING', 'Guest', `Tạo embedding tìm kiếm ngữ nghĩa: "${query}"`);
+    const searchUsername = req.user ? req.user.username : 'Guest';
+    await logAction('GEMINI_EMBEDDING', searchUsername, `Tạo embedding tìm kiếm ngữ nghĩa: "${query}"`);
     const queryEmbedding = await getEmbedding(query);
     console.log(`Query embedding generated. Size: ${queryEmbedding.length}. Calling match_links...`);
 
@@ -718,7 +930,7 @@ app.post('/api/search', searchLimiter, async (req, res) => {
 });
 
 // 4. Delete a link
-app.delete('/api/links/:id', authenticateJWT, async (req, res) => {
+app.delete('/api/links/:id', authenticateJWT, maintenanceModeCheck, checkPermission('delete_link'), async (req, res) => {
   const { id } = req.params;
 
   try {
@@ -737,7 +949,7 @@ app.delete('/api/links/:id', authenticateJWT, async (req, res) => {
 });
 
 // 4.5. Update a link (Edit post/link)
-app.put('/api/links/:id', authenticateJWT, async (req, res) => {
+app.put('/api/links/:id', authenticateJWT, maintenanceModeCheck, checkPermission('edit_link'), async (req, res) => {
   const { id } = req.params;
   const { url, title, content, deadline } = req.body;
 
@@ -781,7 +993,7 @@ app.put('/api/links/:id', authenticateJWT, async (req, res) => {
 });
 
 // POST /api/links/:id/click (Tăng số lượt click khi truy cập liên kết)
-app.post('/api/links/:id/click', clickLimiter, async (req, res) => {
+app.post('/api/links/:id/click', optionalJWT, maintenanceModeCheck, checkPermission('click_link'), clickLimiter, async (req, res) => {
   const { id } = req.params;
   try {
     // Lấy số lượt click hiện tại
@@ -804,7 +1016,9 @@ app.post('/api/links/:id/click', clickLimiter, async (req, res) => {
       .select('id, click_count');
 
     if (updateError) throw updateError;
-    await logAction('CLICK_LINK', 'Guest', `Click truy cập liên kết ID: ${id}. Tổng lượt click: ${newClickCount}`);
+    
+    const clickUsername = req.user ? req.user.username : 'Guest';
+    await logAction('CLICK_LINK', clickUsername, `Click truy cập liên kết ID: ${id}. Tổng lượt click: ${newClickCount}`);
     res.json({ success: true, click_count: newClickCount });
   } catch (error) {
     console.error('Error incrementing click count:', error);

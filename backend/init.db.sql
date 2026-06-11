@@ -79,3 +79,17 @@ AS $$
   ORDER BY fl_links.embedding <=> query_embedding ASC
   LIMIT match_count;
 $$;
+
+-- Bảng fl_settings để lưu trữ các thiết lập động của Admin
+CREATE TABLE IF NOT EXISTS public.fl_settings (
+    key text PRIMARY KEY,
+    value jsonb NOT NULL,
+    updated_at timestamp with time zone default timezone ('utc'::text, now()) NOT NULL
+);
+
+-- Khởi tạo các giá trị cài đặt mặc định
+INSERT INTO public.fl_settings (key, value) VALUES
+('rate_limiting', '{"enabled": true, "login_limit": 10, "create_link_limit": 10, "analyze_limit": 5, "search_limit": 15, "click_limit": 30}'::jsonb),
+('permissions', '{"guest": ["search_links", "view_links", "click_link"], "manager": ["create_link", "edit_link", "delete_link", "analyze_link"]}'::jsonb),
+('system', '{"maintenance_mode": false, "log_retention_days": 30, "default_search_limit": 9, "default_search_threshold": 0.3}'::jsonb)
+ON CONFLICT (key) DO NOTHING;

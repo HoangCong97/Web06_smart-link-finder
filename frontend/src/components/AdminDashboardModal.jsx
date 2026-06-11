@@ -1,9 +1,9 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { X, Users, UserPlus, Trash2, Edit2, Save, Key, AlertCircle, Activity, Database, Server, Sparkles, Brain, ClipboardList, Search, RefreshCw, CheckCircle2, XCircle, ArrowRight, Shield } from 'lucide-react';
+import { X, Users, UserPlus, Trash2, Edit2, Save, Key, AlertCircle, Activity, Database, Server, Sparkles, Brain, ClipboardList, Search, RefreshCw, CheckCircle2, XCircle, ArrowRight, Shield, Settings } from 'lucide-react';
 import { api } from '../services/api';
 
 const AdminDashboardModal = ({ isOpen, onClose }) => {
-  const [activeTab, setActiveTab] = useState('managers'); // 'managers', 'connections', 'logs'
+  const [activeTab, setActiveTab] = useState('managers'); // 'managers', 'connections', 'logs', 'settings'
   const [error, setError] = useState('');
   const [successMsg, setSuccessMsg] = useState('');
 
@@ -27,6 +27,14 @@ const AdminDashboardModal = ({ isOpen, onClose }) => {
   const [logsTotal, setLogsTotal] = useState(0);
   const [loadingLogs, setLoadingLogs] = useState(false);
   const [logsError, setLogsError] = useState('');
+
+  // ---------------- SYSTEM SETTINGS STATE ----------------
+  const [settingsData, setSettingsData] = useState({
+    rate_limiting: { enabled: true, login_limit: 10, create_link_limit: 10, analyze_limit: 5, search_limit: 15, click_limit: 30 },
+    permissions: { guest: [], manager: [] },
+    system: { maintenance_mode: false, log_retention_days: 30, default_search_limit: 9, default_search_threshold: 0.3 }
+  });
+  const [loadingSettings, setLoadingSettings] = useState(false);
 
   // Log Filters
   const [actionTypeFilter, setActionTypeFilter] = useState('');
@@ -98,6 +106,22 @@ const AdminDashboardModal = ({ isOpen, onClose }) => {
     }
   };
 
+  // Fetch dynamic system settings logic
+  const fetchSettings = async () => {
+    if (!localStorage.getItem('token')) return;
+    setLoadingSettings(true);
+    setError('');
+    try {
+      const data = await api.getAdminSettings();
+      setSettingsData(data || {});
+    } catch (err) {
+      console.error(err);
+      setError(err.message || 'Lỗi tải cấu hình hệ thống');
+    } finally {
+      setLoadingSettings(false);
+    }
+  };
+
   // Trigger loads based on active tab
   useEffect(() => {
     if (isOpen) {
@@ -110,6 +134,8 @@ const AdminDashboardModal = ({ isOpen, onClose }) => {
         fetchHealth();
       } else if (activeTab === 'logs') {
         fetchLogs(true);
+      } else if (activeTab === 'settings') {
+        fetchSettings();
       }
     }
   }, [isOpen, activeTab]);
@@ -143,6 +169,63 @@ const AdminDashboardModal = ({ isOpen, onClose }) => {
     setUsernameFilter('');
     setDateFilter('');
     setLogsLimit(50);
+  };
+
+  // ----------------- SYSTEM SETTINGS HANDLERS -----------------
+  const handleRateLimitChange = (key, value) => {
+    const parsedVal = parseInt(value, 10);
+    setSettingsData(prev => ({
+      ...prev,
+      rate_limiting: {
+        ...prev.rate_limiting,
+        [key]: isNaN(parsedVal) ? '' : parsedVal
+      }
+    }));
+  };
+
+  const handleSystemSettingChange = (key, value) => {
+    setSettingsData(prev => ({
+      ...prev,
+      system: {
+        ...prev.system,
+        [key]: value
+      }
+    }));
+  };
+
+  const handlePermissionToggle = (role, permission) => {
+    setSettingsData(prev => {
+      const currentRolePerms = prev.permissions?.[role] || [];
+      const updatedPerms = currentRolePerms.includes(permission)
+        ? currentRolePerms.filter(p => p !== permission)
+        : [...currentRolePerms, permission];
+      
+      return {
+        ...prev,
+        permissions: {
+          ...prev.permissions,
+          [role]: updatedPerms
+        }
+      };
+    });
+  };
+
+  const handleSaveSettings = async (e) => {
+    e.preventDefault();
+    setActionLoading(true);
+    setError('');
+    setSuccessMsg('');
+
+    try {
+      const response = await api.updateAdminSettings(settingsData);
+      setSettingsData(response.settings);
+      setSuccessMsg('Đã lưu cấu hình hệ thống thành công');
+    } catch (err) {
+      console.error(err);
+      setError(err.message || 'Lỗi cập nhật cấu hình hệ thống');
+    } finally {
+      setActionLoading(false);
+    }
   };
 
   if (!isOpen) return null;
@@ -313,6 +396,14 @@ const AdminDashboardModal = ({ isOpen, onClose }) => {
           >
             <ClipboardList size={16} />
             <span>Nhật ký Hoạt động</span>
+          </button>
+          <button
+            className={`admin-tab-btn ${activeTab === 'settings' ? 'active' : ''}`}
+            onClick={() => { setActiveTab('settings'); setError(''); setSuccessMsg(''); }}
+            title="Cấu hình hệ thống"
+          >
+            <Settings size={16} />
+            <span>Cấu hình</span>
           </button>
         </div>
 
@@ -783,6 +874,283 @@ const AdminDashboardModal = ({ isOpen, onClose }) => {
                   </>
                 )}
               </div>
+            </div>
+          )}
+
+          {/* TAB 4: SYSTEM SETTINGS */}
+          {activeTab === 'settings' && (
+            <div className="settings-tab-sec animated-fade-in">
+              <h4 className="section-subtitle flex-center gap-1.5" style={{ marginBottom: '1.25rem' }}>
+                <Settings size={16} /> Cấu hình hệ thống động
+              </h4>
+              
+              {loadingSettings ? (
+                <div className="flex-center py-12">
+                  <div className="btn-spinner icon-purple"></div>
+                  <span className="ml-2 font-semibold text-muted">Đang tải cài đặt hệ thống...</span>
+                </div>
+              ) : (
+                <form onSubmit={handleSaveSettings} className="settings-form">
+                  <div className="settings-grid" style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: '1.25rem' }}>
+                    
+                    {/* Rate Limiting Card */}
+                    <div className="settings-card glass-panel border-glow" style={{ padding: '1.25rem', borderRadius: '12px' }}>
+                      <h5 className="settings-card-title flex-center gap-1.5" style={{ fontSize: '1.05rem', fontWeight: 700, marginBottom: '1rem', color: 'var(--primary)' }}>
+                        <Activity size={16} /> Tần suất yêu cầu (Rate Limit)
+                      </h5>
+                      <div className="form-group flex-center" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', margin: '0.75rem 0' }}>
+                        <label className="form-label" style={{ marginBottom: 0, fontWeight: 600 }}>Kích hoạt Rate Limiting</label>
+                        <label className="toggle-switch-container">
+                          <input 
+                            type="checkbox" 
+                            checked={settingsData.rate_limiting?.enabled || false}
+                            onChange={(e) => setSettingsData(prev => ({
+                              ...prev,
+                              rate_limiting: { ...prev.rate_limiting, enabled: e.target.checked }
+                            }))}
+                          />
+                          <span className="toggle-slider"></span>
+                        </label>
+                      </div>
+                      
+                      <div className="rate-limit-inputs" style={{ opacity: settingsData.rate_limiting?.enabled ? 1 : 0.5, pointerEvents: settingsData.rate_limiting?.enabled ? 'auto' : 'none', transition: 'all 0.2s' }}>
+                        <div className="form-group" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', margin: '0.5rem 0' }}>
+                          <span className="text-muted" style={{ fontSize: '0.88rem' }}>Đăng nhập (lần/phút):</span>
+                          <input 
+                            type="number" 
+                            min="1" 
+                            max="200"
+                            value={settingsData.rate_limiting?.login_limit || 10}
+                            onChange={(e) => handleRateLimitChange('login_limit', e.target.value)}
+                            className="input-field"
+                            style={{ width: '80px', padding: '0.35rem 0.5rem', textAlign: 'center', borderRadius: '6px' }}
+                          />
+                        </div>
+                        <div className="form-group" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', margin: '0.5rem 0' }}>
+                          <span className="text-muted" style={{ fontSize: '0.88rem' }}>Tìm kiếm (lần/phút):</span>
+                          <input 
+                            type="number" 
+                            min="1" 
+                            max="200"
+                            value={settingsData.rate_limiting?.search_limit || 15}
+                            onChange={(e) => handleRateLimitChange('search_limit', e.target.value)}
+                            className="input-field"
+                            style={{ width: '80px', padding: '0.35rem 0.5rem', textAlign: 'center', borderRadius: '6px' }}
+                          />
+                        </div>
+                        <div className="form-group" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', margin: '0.5rem 0' }}>
+                          <span className="text-muted" style={{ fontSize: '0.88rem' }}>Thêm liên kết (lần/phút):</span>
+                          <input 
+                            type="number" 
+                            min="1" 
+                            max="200"
+                            value={settingsData.rate_limiting?.create_link_limit || 10}
+                            onChange={(e) => handleRateLimitChange('create_link_limit', e.target.value)}
+                            className="input-field"
+                            style={{ width: '80px', padding: '0.35rem 0.5rem', textAlign: 'center', borderRadius: '6px' }}
+                          />
+                        </div>
+                        <div className="form-group" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', margin: '0.5rem 0' }}>
+                          <span className="text-muted" style={{ fontSize: '0.88rem' }}>AI phân tích (lần/phút):</span>
+                          <input 
+                            type="number" 
+                            min="1" 
+                            max="200"
+                            value={settingsData.rate_limiting?.analyze_limit || 5}
+                            onChange={(e) => handleRateLimitChange('analyze_limit', e.target.value)}
+                            className="input-field"
+                            style={{ width: '80px', padding: '0.35rem 0.5rem', textAlign: 'center', borderRadius: '6px' }}
+                          />
+                        </div>
+                        <div className="form-group" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', margin: '0.5rem 0' }}>
+                          <span className="text-muted" style={{ fontSize: '0.88rem' }}>Click liên kết (lần/phút):</span>
+                          <input 
+                            type="number" 
+                            min="1" 
+                            max="200"
+                            value={settingsData.rate_limiting?.click_limit || 30}
+                            onChange={(e) => handleRateLimitChange('click_limit', e.target.value)}
+                            className="input-field"
+                            style={{ width: '80px', padding: '0.35rem 0.5rem', textAlign: 'center', borderRadius: '6px' }}
+                          />
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Permissions Card */}
+                    <div className="settings-card glass-panel border-glow" style={{ padding: '1.25rem', borderRadius: '12px' }}>
+                      <h5 className="settings-card-title flex-center gap-1.5" style={{ fontSize: '1.05rem', fontWeight: 700, marginBottom: '1rem', color: 'var(--secondary)' }}>
+                        <Shield size={16} /> Phân Quyền Hệ Thống
+                      </h5>
+                      
+                      {/* Guest Permissions */}
+                      <div className="permissions-group" style={{ marginBottom: '1rem' }}>
+                        <span className="font-semibold" style={{ fontSize: '0.9rem', display: 'block', borderBottom: '1px solid var(--border-color)', paddingBottom: '4px', marginBottom: '8px', color: 'var(--text-muted)' }}>Quyền của Khách (Guest)</span>
+                        <div style={{ display: 'flex', alignItems: 'center', margin: '6px 0' }}>
+                          <input 
+                            type="checkbox" 
+                            id="p_guest_view"
+                            checked={settingsData.permissions?.guest?.includes('view_links') || false}
+                            onChange={() => handlePermissionToggle('guest', 'view_links')}
+                            style={{ marginRight: '8px', width: '16px', height: '16px', cursor: 'pointer' }}
+                          />
+                          <label htmlFor="p_guest_view" style={{ fontSize: '0.88rem', cursor: 'pointer' }}>Xem danh sách link</label>
+                        </div>
+                        <div style={{ display: 'flex', alignItems: 'center', margin: '6px 0' }}>
+                          <input 
+                            type="checkbox" 
+                            id="p_guest_search"
+                            checked={settingsData.permissions?.guest?.includes('search_links') || false}
+                            onChange={() => handlePermissionToggle('guest', 'search_links')}
+                            style={{ marginRight: '8px', width: '16px', height: '16px', cursor: 'pointer' }}
+                          />
+                          <label htmlFor="p_guest_search" style={{ fontSize: '0.88rem', cursor: 'pointer' }}>Tìm kiếm ngữ nghĩa</label>
+                        </div>
+                        <div style={{ display: 'flex', alignItems: 'center', margin: '6px 0' }}>
+                          <input 
+                            type="checkbox" 
+                            id="p_guest_click"
+                            checked={settingsData.permissions?.guest?.includes('click_link') || false}
+                            onChange={() => handlePermissionToggle('guest', 'click_link')}
+                            style={{ marginRight: '8px', width: '16px', height: '16px', cursor: 'pointer' }}
+                          />
+                          <label htmlFor="p_guest_click" style={{ fontSize: '0.88rem', cursor: 'pointer' }}>Click link nguồn</label>
+                        </div>
+                      </div>
+
+                      {/* Manager Permissions */}
+                      <div className="permissions-group" style={{ marginTop: '1rem' }}>
+                        <span className="font-semibold" style={{ fontSize: '0.9rem', display: 'block', borderBottom: '1px solid var(--border-color)', paddingBottom: '4px', marginBottom: '8px', color: 'var(--text-muted)' }}>Quyền của Quản lý (Manager)</span>
+                        <div style={{ display: 'flex', alignItems: 'center', margin: '6px 0' }}>
+                          <input 
+                            type="checkbox" 
+                            id="p_mgr_create"
+                            checked={settingsData.permissions?.manager?.includes('create_link') || false}
+                            onChange={() => handlePermissionToggle('manager', 'create_link')}
+                            style={{ marginRight: '8px', width: '16px', height: '16px', cursor: 'pointer' }}
+                          />
+                          <label htmlFor="p_mgr_create" style={{ fontSize: '0.88rem', cursor: 'pointer' }}>Thêm liên kết mới</label>
+                        </div>
+                        <div style={{ display: 'flex', alignItems: 'center', margin: '6px 0' }}>
+                          <input 
+                            type="checkbox" 
+                            id="p_mgr_edit"
+                            checked={settingsData.permissions?.manager?.includes('edit_link') || false}
+                            onChange={() => handlePermissionToggle('manager', 'edit_link')}
+                            style={{ marginRight: '8px', width: '16px', height: '16px', cursor: 'pointer' }}
+                          />
+                          <label htmlFor="p_mgr_edit" style={{ fontSize: '0.88rem', cursor: 'pointer' }}>Chỉnh sửa liên kết</label>
+                        </div>
+                        <div style={{ display: 'flex', alignItems: 'center', margin: '6px 0' }}>
+                          <input 
+                            type="checkbox" 
+                            id="p_mgr_delete"
+                            checked={settingsData.permissions?.manager?.includes('delete_link') || false}
+                            onChange={() => handlePermissionToggle('manager', 'delete_link')}
+                            style={{ marginRight: '8px', width: '16px', height: '16px', cursor: 'pointer' }}
+                          />
+                          <label htmlFor="p_mgr_delete" style={{ fontSize: '0.88rem', cursor: 'pointer' }}>Xóa liên kết</label>
+                        </div>
+                        <div style={{ display: 'flex', alignItems: 'center', margin: '6px 0' }}>
+                          <input 
+                            type="checkbox" 
+                            id="p_mgr_analyze"
+                            checked={settingsData.permissions?.manager?.includes('analyze_link') || false}
+                            onChange={() => handlePermissionToggle('manager', 'analyze_link')}
+                            style={{ marginRight: '8px', width: '16px', height: '16px', cursor: 'pointer' }}
+                          />
+                          <label htmlFor="p_mgr_analyze" style={{ fontSize: '0.88rem', cursor: 'pointer' }}>Sử dụng AI phân tích</label>
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Advanced System Settings Card */}
+                    <div className="settings-card glass-panel border-glow" style={{ padding: '1.25rem', borderRadius: '12px' }}>
+                      <h5 className="settings-card-title flex-center gap-1.5" style={{ fontSize: '1.05rem', fontWeight: 700, marginBottom: '1rem', color: 'var(--warning)' }}>
+                        <Database size={16} /> Thiết Lập Hệ Thống Nâng Cao
+                      </h5>
+                      
+                      <div className="form-group flex-center" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', margin: '0.75rem 0' }}>
+                        <label className="form-label text-danger" style={{ marginBottom: 0, fontWeight: 700 }}>Chế độ bảo trì (Maintenance)</label>
+                        <label className="toggle-switch-container">
+                          <input 
+                            type="checkbox" 
+                            checked={settingsData.system?.maintenance_mode || false}
+                            onChange={(e) => setSettingsData(prev => ({
+                              ...prev,
+                              system: { ...prev.system, maintenance_mode: e.target.checked }
+                            }))}
+                          />
+                          <span className="toggle-slider btn-danger-toggle"></span>
+                        </label>
+                      </div>
+
+                      <div className="form-group" style={{ display: 'flex', flexDirection: 'column', gap: '4px', margin: '0.8rem 0' }}>
+                        <span className="text-muted" style={{ fontSize: '0.88rem' }}>Giữ nhật ký (ngày):</span>
+                        <input 
+                          type="number" 
+                          min="1" 
+                          max="365"
+                          value={settingsData.system?.log_retention_days || 30}
+                          onChange={(e) => handleSystemSettingChange('log_retention_days', parseInt(e.target.value, 10))}
+                          className="input-field"
+                        />
+                      </div>
+
+                      <div className="form-group" style={{ display: 'flex', flexDirection: 'column', gap: '4px', margin: '0.8rem 0' }}>
+                        <span className="text-muted" style={{ fontSize: '0.88rem' }}>Số kết quả tìm kiếm mặc định:</span>
+                        <input 
+                          type="number" 
+                          min="1" 
+                          max="50"
+                          value={settingsData.system?.default_search_limit || 9}
+                          onChange={(e) => handleSystemSettingChange('default_search_limit', parseInt(e.target.value, 10))}
+                          className="input-field"
+                        />
+                      </div>
+
+                      <div className="form-group" style={{ display: 'flex', flexDirection: 'column', gap: '4px', margin: '0.8rem 0' }}>
+                        <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                          <span className="text-muted" style={{ fontSize: '0.88rem' }}>Độ tương đồng mặc định:</span>
+                          <span className="font-semibold text-primary" style={{ fontSize: '0.88rem' }}>{Math.round((settingsData.system?.default_search_threshold || 0.3) * 100)}%</span>
+                        </div>
+                        <input 
+                          type="range" 
+                          min="0.0" 
+                          max="1.0" 
+                          step="0.05"
+                          value={settingsData.system?.default_search_threshold || 0.3}
+                          onChange={(e) => handleSystemSettingChange('default_search_threshold', parseFloat(e.target.value))}
+                          className="slider-input"
+                          style={{ margin: '0.35rem 0' }}
+                        />
+                      </div>
+                    </div>
+                    
+                  </div>
+
+                  <div className="flex justify-end" style={{ display: 'flex', justifyContent: 'flex-end', marginTop: '1.25rem' }}>
+                    <button
+                      type="submit"
+                      disabled={actionLoading}
+                      className="btn-primary flex-center gap-1.5"
+                      style={{ padding: '0.55rem 2rem' }}
+                    >
+                      {actionLoading ? (
+                        <>
+                          <div className="btn-spinner"></div>
+                          <span>Đang lưu...</span>
+                        </>
+                      ) : (
+                        <>
+                          <Save size={16} />
+                          <span>Lưu cấu hình</span>
+                        </>
+                      )}
+                    </button>
+                  </div>
+                </form>
+              )}
             </div>
           )}
 

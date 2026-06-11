@@ -86,7 +86,7 @@ const LinkCard = ({ link, onDelete, onEdit, onClickCard, onTrackClick, user, isS
           {user && (
             <div className="card-actions">
               {showConfirm ? (
-                <div className="confirm-delete animated-fade-in">
+                <div className="confirm-delete animated-fade-in" onClick={(e) => e.stopPropagation()}>
                   <button
                     onClick={handleConfirmDelete}
                     disabled={isDeleting}
