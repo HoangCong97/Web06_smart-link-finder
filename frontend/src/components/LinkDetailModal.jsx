@@ -46,35 +46,19 @@ const LinkDetailModal = ({ isOpen, onClose, link, onTrackClick, user }) => {
             <h2 className="detail-title text-gradient-title">{title || 'Không có tiêu đề'}</h2>
           </div>
 
-          {/* Description */}
-          <div className="detail-section mb-4">
-            <p className="detail-desc-content">
-              {content ? content : 'Không có mô tả cho liên kết này.'}
-            </p>
-          </div>
-
-          {/* Copy URL Section */}
-          <div className="detail-section mb-4 detail-url-section">
-            <span className="detail-time-label flex-align-center gap-1 mb-2">
-              <span>Đường dẫn liên kết (URL):</span>
-            </span>
-            <div className="url-copy-wrapper">
-              <a href={url} target="_blank" rel="noopener noreferrer" className="url-display-text" title={url}>
-                {url}
-              </a>
-              <button 
-                type="button" 
-                className={`btn-copy-url ${copied ? 'copied' : ''}`}
-                onClick={handleCopy}
-              >
-                {copied ? <Check size={14} /> : <Copy size={14} />}
-                <span>{copied ? 'Đã sao chép' : 'Sao chép'}</span>
-              </button>
-            </div>
-          </div>
-
           {/* Date Info Grid */}
           <div className="detail-time-grid mb-5">
+            {/* Description */}
+            <div className="detail-time-item">
+              <span className="detail-time-label flex-align-center gap-1 mb-2">
+                <span>Mô tả liên kết:</span>
+              </span>
+              <span className="detail-time-value">
+                {content ? content : 'Không có mô tả cho liên kết này.'}
+              </span>
+            </div>
+
+
             <div className="detail-time-item">
               <span className="detail-time-label flex-align-center gap-1">
                 <Clock size={13} />
@@ -108,6 +92,23 @@ const LinkDetailModal = ({ isOpen, onClose, link, onTrackClick, user }) => {
                 </span>
               </div>
             )}
+          </div>
+
+          {/* Copy URL Section */}
+          <div className="detail-section mb-4 detail-url-section">
+            <div className="url-copy-wrapper">
+              <a href={url} target="_blank" rel="noopener noreferrer" className="url-display-text" title={url}>
+                {url}
+              </a>
+              <button
+                type="button"
+                className={`btn-copy-url ${copied ? 'copied' : ''}`}
+                onClick={handleCopy}
+              >
+                {copied ? <Check size={14} /> : <Copy size={14} />}
+                <span>{copied ? 'Đã sao chép' : 'Sao chép'}</span>
+              </button>
+            </div>
           </div>
 
           {/* Action Button */}
