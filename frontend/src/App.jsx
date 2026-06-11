@@ -1,5 +1,5 @@
 import React, { useState, useEffect, Suspense } from 'react';
-import { Sparkles, Database, RefreshCw, AlertTriangle, HelpCircle, LogIn, LogOut, Users, Plus, Shield, Key, Maximize, Minimize } from 'lucide-react';
+import { Sparkles, Database, RefreshCw, AlertTriangle, HelpCircle, LogIn, LogOut, Users, Plus, Shield, Key } from 'lucide-react';
 import LinkForm from './components/LinkForm';
 import SearchBar from './components/SearchBar';
 import LinkCard from './components/LinkCard';
@@ -43,30 +43,6 @@ function App() {
   const [showLinkForm, setShowLinkForm] = useState(false);
   const [viewingLink, setViewingLink] = useState(null);
   const [isChangePasswordOpen, setIsChangePasswordOpen] = useState(false);
-  const [isFullscreen, setIsFullscreen] = useState(false);
-
-  // Theo dõi sự kiện thay đổi toàn màn hình
-  useEffect(() => {
-    const handleFullscreenChange = () => {
-      setIsFullscreen(!!document.fullscreenElement);
-    };
-    document.addEventListener('fullscreenchange', handleFullscreenChange);
-    return () => {
-      document.removeEventListener('fullscreenchange', handleFullscreenChange);
-    };
-  }, []);
-
-  const toggleFullscreen = () => {
-    if (!document.fullscreenElement) {
-      document.documentElement.requestFullscreen().catch((err) => {
-        console.error('Không thể bật chế độ toàn màn hình:', err);
-      });
-    } else {
-      if (document.exitFullscreen) {
-        document.exitFullscreen();
-      }
-    }
-  };
 
   // Tải cài đặt hệ thống công khai
   const fetchPublicSettings = async () => {
@@ -359,15 +335,6 @@ function App() {
           <h1 className="app-title text-gradient" style={{ textAlign: 'left', margin: 0, fontSize: '1.5rem', fontWeight: 800 }}>Smart Link Finder</h1>
 
           <div className="header-actions">
-            <button
-              onClick={toggleFullscreen}
-              className="nav-btn btn-sm"
-              title={isFullscreen ? "Thoát toàn màn hình" : "Chế độ toàn màn hình (Ẩn thanh địa chỉ)"}
-            >
-              {isFullscreen ? <Minimize size={14} /> : <Maximize size={14} />}
-              <span className="btn-text">{isFullscreen ? "Thu nhỏ" : "Toàn màn hình"}</span>
-            </button>
-
             {user ? (
               <div className="header-user-group">
                 <span className="user-name-text">Xin chào, <strong>{user.username}</strong></span>
