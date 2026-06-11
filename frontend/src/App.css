@@ -137,8 +137,6 @@ h4 {
 /* Glassmorphic Panel (Bảng kính Light Mode) */
 .glass-panel {
   background: var(--bg-card);
-  /* backdrop-filter: blur(12px);
-  -webkit-backdrop-filter: blur(12px); */
   border: 1px solid rgba(168, 85, 247, 0.08);
   border-radius: 12px;
   box-shadow: 0 10px 30px -10px rgba(0, 0, 0, 0.05), 0 1px 3px rgba(0, 0, 0, 0.01);
@@ -280,7 +278,7 @@ h4 {
 .cards-grid {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
-  gap: 1.25rem;
+  gap: 0.75rem;
 }
 
 /* Custom animations */
@@ -570,7 +568,6 @@ h4 {
 /* 3. SearchBar Component */
 .search-panel {
   padding: 1.5rem;
-  margin-bottom: 1.5rem;
 }
 
 .search-form {
@@ -1275,7 +1272,8 @@ h4 {
 .modal-content {
   width: 100%;
   max-width: 500px;
-  background: #ffffff; /* Thay var(--bg-card) bằng màu trắng đặc để hoàn toàn không bị nhìn xuyên qua */
+  background: #ffffff;
+  /* Thay var(--bg-card) bằng màu trắng đặc để hoàn toàn không bị nhìn xuyên qua */
   border-radius: 16px;
   box-shadow: 0 20px 40px -15px rgba(0, 0, 0, 0.15), 0 1px 10px rgba(0, 0, 0, 0.05);
   animation: slideUp 0.3s cubic-bezier(0.16, 1, 0.3, 1) forwards;
@@ -1591,9 +1589,9 @@ h4 {
   position: sticky;
   top: 0;
   z-index: 100;
-  background: transparent;
-  backdrop-filter: blur(16px);
-  -webkit-backdrop-filter: blur(16px);
+  background: white;
+  margin-bottom: 1.5rem;
+  border-radius: 12px;
 }
 
 @media (max-width: 650px) {
@@ -2088,11 +2086,11 @@ h4 {
     flex-direction: row;
     align-items: center;
   }
-  
+
   .filter-item.search-box {
     flex: 1.5;
   }
-  
+
   .filter-item.select-box {
     flex: 1;
   }
@@ -2246,7 +2244,7 @@ h4 {
   .admin-tab-btn span {
     display: none;
   }
-  
+
   .admin-tab-btn {
     padding: 0.85rem;
     justify-content: center;
