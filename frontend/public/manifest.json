@@ -1,0 +1,16 @@
+{
+  "short_name": "Link Finder",
+  "name": "Smart Link Finder",
+  "icons": [
+    {
+      "src": "favicon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml"
+    }
+  ],
+  "start_url": ".",
+  "display": "standalone",
+  "orientation": "portrait-primary",
+  "theme_color": "#8b5cf6",
+  "background_color": "#f8fafc"
+}
