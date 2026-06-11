@@ -1,14 +1,30 @@
-import React from 'react';
-import { X, ExternalLink, Calendar, Clock, Eye } from 'lucide-react';
+import React, { useState, useEffect } from 'react';
+import { X, ExternalLink, Calendar, Clock, Eye, Copy, Check } from 'lucide-react';
 import { getDomain, formatCreatedDate, formatDeadlineDate, getDeadlineStatus } from '../utils/helpers';
 
 const LinkDetailModal = ({ isOpen, onClose, link, onTrackClick, user }) => {
+  const [copied, setCopied] = useState(false);
+
+  useEffect(() => {
+    setCopied(false);
+  }, [link?.id]);
+
   if (!isOpen || !link) return null;
 
   const { title, url, content, deadline, created_at, click_count } = link;
 
   const domain = getDomain(url);
   const deadlineStatus = getDeadlineStatus(deadline);
+
+  const handleCopy = async () => {
+    try {
+      await navigator.clipboard.writeText(url);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+    } catch (err) {
+      console.error('Không thể sao chép liên kết:', err);
+    }
+  };
 
   return (
     <div className="modal-backdrop" onClick={onClose}>
@@ -35,6 +51,26 @@ const LinkDetailModal = ({ isOpen, onClose, link, onTrackClick, user }) => {
             <p className="detail-desc-content">
               {content ? content : 'Không có mô tả cho liên kết này.'}
             </p>
+          </div>
+
+          {/* Copy URL Section */}
+          <div className="detail-section mb-4 detail-url-section">
+            <span className="detail-time-label flex-align-center gap-1 mb-2">
+              <span>Đường dẫn liên kết (URL):</span>
+            </span>
+            <div className="url-copy-wrapper">
+              <a href={url} target="_blank" rel="noopener noreferrer" className="url-display-text" title={url}>
+                {url}
+              </a>
+              <button 
+                type="button" 
+                className={`btn-copy-url ${copied ? 'copied' : ''}`}
+                onClick={handleCopy}
+              >
+                {copied ? <Check size={14} /> : <Copy size={14} />}
+                <span>{copied ? 'Đã sao chép' : 'Sao chép'}</span>
+              </button>
+            </div>
           </div>
 
           {/* Date Info Grid */}

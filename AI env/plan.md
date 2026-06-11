@@ -41,7 +41,7 @@ Giải pháp theo dõi truy cập sẽ được triển khai theo 2 cấp độ:
 ### Cấp độ 2: Số người đang xem trực tiếp (Realtime Live Viewers - Tùy chọn)
 * **Công nghệ**: Sử dụng **Supabase Broadcast & Presence**.
 * **Luồng xử lý**:
-  1. Khi người dùng mở [LinkDetailModal.jsx](file:///c:/Workspace/Web06_find-link/frontend/src/components/LinkDetailModal.jsx), client sẽ đăng ký vào một channel realtime của Supabase với định danh `link:detail:[id]`.
+  1. Khi người dùng mở [LinkDetailModal.jsx](file:///c:/Workspace/Web06_smart-link-finder/frontend/src/components/LinkDetailModal.jsx), client sẽ đăng ký vào một channel realtime của Supabase với định danh `link:detail:[id]`.
   2. Supabase tự động theo dõi số lượng kết nối đang active (Presence) trong channel này.
   3. Frontend lắng nghe sự kiện thay đổi trạng thái của Presence để cập nhật số lượng mắt xem trực tuyến theo thời gian thực (ví dụ: `👁️ 3 người đang xem`).
 
@@ -74,7 +74,7 @@ Khi hiển thị danh sách, hệ thống sẽ tự động tính toán và phâ
 
 Giao diện sẽ được cập nhật để mang lại cảm giác hiện đại, sinh động bằng Vanilla CSS (Glassmorphism):
 
-### Trên Thẻ [LinkCard.jsx](file:///c:/Workspace/Web06_find-link/frontend/src/components/LinkCard.jsx)
+### Trên Thẻ [LinkCard.jsx](file:///c:/Workspace/Web06_smart-link-finder/frontend/src/components/LinkCard.jsx)
 * **Badge Loại Link**:
   * **Link cố định**: Hiển thị badge màu xanh dương ngọc dịu nhẹ (`--cyan-glow`) với icon cái ghim hoặc vô cực.
   * **Link có hạn**: Hiển thị badge màu cam sáng (`--orange-glow`) với icon đồng hồ cát.
@@ -82,13 +82,13 @@ Giao diện sẽ được cập nhật để mang lại cảm giác hiện đạ
 * **Hiệu ứng đặc biệt (Hot/Urgent Link)**:
   * Nếu link có hạn sắp hết hạn trong 24h và có lượt click cao, thẻ card sẽ có hiệu ứng viền phát sáng gradient loang màu nhẹ (`border-glow-pulse`) để thu hút sự chú ý của người dùng.
 
-### Trên Modal chi tiết [LinkDetailModal.jsx](file:///c:/Workspace/Web06_find-link/frontend/src/components/LinkDetailModal.jsx)
+### Trên Modal chi tiết [LinkDetailModal.jsx](file:///c:/Workspace/Web06_smart-link-finder/frontend/src/components/LinkDetailModal.jsx)
 * Bổ sung một khu vực thống kê lượt truy cập:
   * Tổng lượt click: `1,250`.
   * Xu hướng hôm nay: `🔥 84 lượt click (Hot)`.
   * Số lượng người đang xem trực tiếp (nếu dùng Realtime).
 
-### Bộ lọc tại [SearchBar.jsx](file:///c:/Workspace/Web06_find-link/frontend/src/components/SearchBar.jsx)
+### Bộ lọc tại [SearchBar.jsx](file:///c:/Workspace/Web06_smart-link-finder/frontend/src/components/SearchBar.jsx)
 * Thêm một danh sách lựa chọn (Dropdown) để người dùng chủ động chọn kiểu sắp xếp:
   * **Thông minh (Smart)**: Sắp xếp theo điểm ưu tiên động.
   * **Liên kết Hot**: Ưu tiên link có lượt truy cập cao nhất.
@@ -104,13 +104,13 @@ Giao diện sẽ được cập nhật để mang lại cảm giác hiện đạ
 2. Tạo bảng `fl_link_clicks` để ghi nhận nhật ký click chi tiết.
 3. Cập nhật hoặc viết lại hàm RPC `match_links` để hỗ trợ tính điểm và sắp xếp theo ưu tiên nếu cần.
 
-### Bước 2: Nâng cấp Backend (Express Server - [server.js](file:///c:/Workspace/Web06_find-link/backend/server.js))
+### Bước 2: Nâng cấp Backend (Express Server - [server.js](file:///c:/Workspace/Web06_smart-link-finder/backend/server.js))
 1. Cập nhật API lấy danh sách link: Tính toán `Priority Score` và trả về kèm thông tin lượt xem.
 2. Thêm API endpoint `POST /api/links/:id/click` để ghi nhận lượt truy cập của người dùng.
 3. Cập nhật API thêm/sửa link: Tự động phát hiện hoặc cho phép cấu hình `link_type`.
 
-### Bước 3: Nâng cấp Frontend (React - [App.jsx](file:///c:/Workspace/Web06_find-link/frontend/src/App.jsx))
+### Bước 3: Nâng cấp Frontend (React - [App.jsx](file:///c:/Workspace/Web06_smart-link-finder/frontend/src/App.jsx))
 1. Tích hợp gọi API click khi người dùng truy cập liên kết.
-2. Cập nhật giao diện [LinkCard.jsx](file:///c:/Workspace/Web06_find-link/frontend/src/components/LinkCard.jsx) để hiển thị badge loại link, số lượt click, và các hiệu ứng phát sáng.
-3. Cập nhật [LinkDetailModal.jsx](file:///c:/Workspace/Web06_find-link/frontend/src/components/LinkDetailModal.jsx) hiển thị thông số chi tiết mắt xem.
-4. Thêm chức năng lọc/sắp xếp thông minh ở [SearchBar.jsx](file:///c:/Workspace/Web06_find-link/frontend/src/components/SearchBar.jsx).
+2. Cập nhật giao diện [LinkCard.jsx](file:///c:/Workspace/Web06_smart-link-finder/frontend/src/components/LinkCard.jsx) để hiển thị badge loại link, số lượt click, và các hiệu ứng phát sáng.
+3. Cập nhật [LinkDetailModal.jsx](file:///c:/Workspace/Web06_smart-link-finder/frontend/src/components/LinkDetailModal.jsx) hiển thị thông số chi tiết mắt xem.
+4. Thêm chức năng lọc/sắp xếp thông minh ở [SearchBar.jsx](file:///c:/Workspace/Web06_smart-link-finder/frontend/src/components/SearchBar.jsx).

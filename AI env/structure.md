@@ -7,7 +7,7 @@ Tài liệu này cung cấp chi tiết sơ đồ thư mục, vai trò của từ
 ## 📂 Sơ Đồ Thư Mục Toàn Bộ Dự Án
 
 ```text
-Web06_find-link/
+Web06_smart-link-finder/
 ├── AI env/                 # Thư mục lưu trữ context phục vụ AI (giữ context, quản lý task)
 │   ├── master.md           # [Entry Point] Điểm bắt đầu hướng dẫn AI
 │   ├── structure.md        # Tài liệu cấu trúc dự án (File này)
