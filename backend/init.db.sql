@@ -4,7 +4,7 @@ create table public.FL_links (
     url text not null, -- Đường dẫn (Link)
     title text, -- Tiêu đề (AI đã chuẩn hóa)
     content text, -- Mô tả ngắn (AI đã chuẩn hóa)
-    deadline date, -- Hạn chót (Định dạng YYYY-MM-DD, có thể để trống)
+    deadline timestamp with time zone, -- Hạn chót (Định dạng timestamp, có thể để trống)
     embedding vector (768), -- Ô lưu mảng 768 số của Google text-embedding-04
     created_at timestamp with time zone default timezone ('utc'::text, now()) not null
 );
@@ -20,7 +20,7 @@ returns table (
   url text,
   title text,
   content text,
-  deadline date,
+  deadline timestamp with time zone,
   similarity float -- Trả về thêm điểm số giống nhau (từ 0 đến 1)
 )
 language sql stable
@@ -60,7 +60,7 @@ RETURNS TABLE (
   url text,
   title text,
   content text,
-  deadline date,
+  deadline timestamp with time zone,
   click_count int,
   similarity float
 )

@@ -49,29 +49,24 @@ Giải pháp theo dõi truy cập sẽ được triển khai theo 2 cấp độ:
 
 ## 3. Giải pháp "Độ ưu tiên hiển thị" (Display Priority)
 
-Khi hiển thị danh sách, hệ thống cần ưu tiên hiển thị các liên kết quan trọng, khẩn cấp hoặc đang có xu hướng thịnh hành.
+Khi hiển thị danh sách, hệ thống sẽ tự động tính toán và phân bổ liên kết vào các Tầng ưu tiên (Tiers) dưới đây để đảm bảo hiển thị hợp lý:
 
-### Công thức tính Điểm Ưu Tiên (Priority Score)
-Điểm số ưu tiên hiển thị sẽ được tính toán động khi truy vấn dữ liệu từ cơ sở dữ liệu:
+### Bảng phân tầng ưu tiên (Sorting Priority Tiers)
 
-$$\text{Priority Score} = \text{Base Type Score} + \text{Urgency Score} + \text{Hotness Score} - \text{Penalty Score}$$
+| Tầng (Tier) | Mô tả Nhóm liên kết | Điều kiện xác định | Thứ tự sắp xếp trong cùng tầng |
+| :---: | :--- | :--- | :--- |
+| **Tier 1** | Link mới thêm trong ngày | `created_at` trong vòng 24 giờ qua | `created_at` giảm dần (mới nhất lên trước) |
+| **Tier 2** | Link hot 3 ngày gần đây | Số click trong 3 ngày qua `clicks_3d > 0` | Số click `clicks_3d` giảm dần |
+| **Tier 3** | Link sắp hết hạn | Có deadline và `0 < deadline - hiện tại <= 2 ngày` | `deadline` tăng dần (sắp hết hạn nhất lên trước) |
+| **Tier 4** | Link mới hết hạn | Có deadline và `0 <= hiện tại - deadline <= 1 ngày` | `deadline` giảm dần (mới hết hạn nhất lên trước) |
+| **Tier 5** | Link click nhiều không thời hạn | Không deadline và tổng `click_count > 0` | `click_count` giảm dần |
+| **Tier 6** | Link có thời hạn còn hạn dài | Có deadline và `deadline - hiện tại > 2 ngày` | `deadline` tăng dần (sắp hết hạn nhất lên trước) |
+| **Tier 7** | Link không thời hạn | Không deadline và tổng `click_count = 0` | `created_at` giảm dần |
+| **Tier 8** | Link quá hạn | Có deadline và `hiện tại - deadline > 1 ngày` | `deadline` giảm dần (mới quá hạn lên trước) |
 
-Trong đó:
-1. **Base Type Score (Điểm theo loại link)**:
-   * Link `temporary` (chưa hết hạn): `+100 điểm` (luôn được xếp trên các link cố định thông thường nếu không có lọc khác).
-   * Link `permanent`: `+0 điểm`.
-2. **Urgency Score (Độ khẩn cấp - chỉ áp dụng cho Link temporary)**:
-   * Sắp hết hạn trong $\le 1$ ngày: `+150 điểm`.
-   * Sắp hết hạn trong $\le 3$ ngày: `+80 điểm`.
-   * Các ngày còn lại: `+0 điểm`.
-3. **Hotness Score (Độ hot gần đây)**:
-   * Số click trong 24h qua $\times$ `2 điểm/click`.
-4. **Penalty Score (Điểm trừ phạt)**:
-   * Link `temporary` đã quá hạn (`deadline < current_date`): `-500 điểm` (bị đẩy xuống cuối cùng).
-
-### Tải danh sách mặc định & Sắp xếp (Sorting Logic)
-* **Mặc định (Smart Sorting)**: Hệ thống sẽ lấy danh sách liên kết và sắp xếp theo `Priority Score DESC` kết hợp với `created_at DESC`.
-* **Khi tìm kiếm ngữ nghĩa AI**: Điểm tương đồng vector (Similarity) vẫn giữ vai trò chính, tuy nhiên có thể cộng thêm một tỷ lệ nhỏ trọng số của `Priority Score` để các kết quả có độ tương đồng bằng nhau thì kết quả nào hot/gấp sẽ lên trước.
+### Sắp xếp chi tiết (Sorting Logic)
+* **Mặc định (Smart Sorting)**: Hệ thống sẽ phân nhóm tất cả các liên kết vào các Tier từ 1 đến 8 ở trên, sau đó sắp xếp theo `Tier ASC` (Tầng nhỏ hiển thị trước). Đối với các liên kết cùng tầng, áp dụng thứ tự sắp xếp phụ được quy định ở cột cuối cùng trong bảng.
+* **Khi tìm kiếm ngữ nghĩa AI**: Kết quả tìm kiếm sẽ được sắp xếp dựa trên điểm tương đồng (Similarity) từ cao xuống thấp. Nếu có những liên kết có điểm tương đồng bằng nhau, hệ thống sẽ ưu tiên liên kết thuộc Tier cao hơn (Tier số nhỏ hơn).
 
 ---
 

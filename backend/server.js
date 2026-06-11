@@ -727,6 +727,18 @@ app.post('/api/links', authenticateJWT, maintenanceModeCheck, checkPermission('c
   const targetTitle = title || url;
 
   try {
+    // Kiểm tra trùng lặp URL trước khi gọi AI và lưu
+    const { data: existingLink, error: checkError } = await supabase
+      .from('fl_links')
+      .select('id, title')
+      .eq('url', url)
+      .maybeSingle();
+
+    if (checkError) throw checkError;
+    if (existingLink) {
+      return res.status(400).json({ error: `Liên kết này đã tồn tại trong hệ thống với tiêu đề: "${existingLink.title}"` });
+    }
+
     console.log(`Generating embedding for title: "${targetTitle}"`);
     await logAction('GEMINI_EMBEDDING', req.user.username, `Tạo embedding cho tiêu đề: "${targetTitle}"`);
     const embedding = await getEmbedding(targetTitle);
@@ -827,6 +839,18 @@ Text to analyze:
 
     if (!parsed.url) {
       return res.status(400).json({ error: 'Không tìm thấy liên kết URL nào trong nội dung này.' });
+    }
+
+    // Kiểm tra trùng lặp URL trước khi gọi AI tạo embedding và lưu
+    const { data: existingLink, error: checkError } = await supabase
+      .from('fl_links')
+      .select('id, title')
+      .eq('url', parsed.url)
+      .maybeSingle();
+
+    if (checkError) throw checkError;
+    if (existingLink) {
+      return res.status(400).json({ error: `Liên kết trích xuất đã tồn tại trong hệ thống với tiêu đề: "${existingLink.title}"` });
     }
 
     const titleToEmbed = parsed.title || parsed.url;

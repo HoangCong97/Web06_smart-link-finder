@@ -17,13 +17,15 @@ const EditLinkModal = ({ isOpen, onClose, link, onLinkUpdated }) => {
       setUrl(link.url || '');
       setTitle(link.title || '');
       setContent(link.content || '');
-      // Format deadline date to YYYY-MM-DD for input element
+      // Format deadline date to YYYY-MM-DDTHH:MM for input element
       if (link.deadline) {
         const d = new Date(link.deadline);
         const year = d.getFullYear();
         const month = String(d.getMonth() + 1).padStart(2, '0');
         const day = String(d.getDate()).padStart(2, '0');
-        setDeadline(`${year}-${month}-${day}`);
+        const hours = String(d.getHours()).padStart(2, '0');
+        const minutes = String(d.getMinutes()).padStart(2, '0');
+        setDeadline(`${year}-${month}-${day}T${hours}:${minutes}`);
       } else {
         setDeadline('');
       }
@@ -149,7 +151,7 @@ const EditLinkModal = ({ isOpen, onClose, link, onLinkUpdated }) => {
               <Calendar size={14} /> Deadline
             </label>
             <input
-              type="date"
+              type="datetime-local"
               value={deadline}
               onChange={(e) => setDeadline(e.target.value)}
               disabled={loading}
