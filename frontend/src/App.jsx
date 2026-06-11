@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Sparkles, Database, RefreshCw, AlertTriangle, HelpCircle, LogIn, LogOut, Users, Plus, Shield } from 'lucide-react';
+import { Sparkles, Database, RefreshCw, AlertTriangle, HelpCircle, LogIn, LogOut, Users, Plus, Shield, Key } from 'lucide-react';
 import LinkForm from './components/LinkForm';
 import SearchBar from './components/SearchBar';
 import LinkCard from './components/LinkCard';
@@ -7,6 +7,7 @@ import Loader from './components/Loader';
 import LoginModal from './components/LoginModal';
 import AdminDashboardModal from './components/AdminDashboardModal';
 import EditLinkModal from './components/EditLinkModal';
+import ChangePasswordModal from './components/ChangePasswordModal';
 import LinkDetailModal from './components/LinkDetailModal';
 import { api } from './services/api';
 import './App.css';
@@ -39,6 +40,7 @@ function App() {
   const [editingLink, setEditingLink] = useState(null);
   const [showLinkForm, setShowLinkForm] = useState(false);
   const [viewingLink, setViewingLink] = useState(null);
+  const [isChangePasswordOpen, setIsChangePasswordOpen] = useState(false);
 
   // Tải cài đặt hệ thống công khai
   const fetchPublicSettings = async () => {
@@ -344,6 +346,14 @@ function App() {
                   </button>
                 )}
                 <button
+                  onClick={() => setIsChangePasswordOpen(true)}
+                  className="nav-btn btn-sm"
+                  title="Đổi mật khẩu"
+                >
+                  <Key size={14} />
+                  <span className="btn-text">Đổi mật khẩu</span>
+                </button>
+                <button
                   onClick={() => setShowLinkForm((prev) => !prev)}
                   className={`nav-btn btn-sm ${showLinkForm ? 'active' : ''}`}
                   style={showLinkForm ? { borderColor: 'var(--primary)', color: 'var(--primary)', background: '#fff' } : {}}
@@ -544,6 +554,11 @@ function App() {
         <AdminDashboardModal
           isOpen={isManagerModalOpen}
           onClose={() => setIsManagerModalOpen(false)}
+        />
+
+        <ChangePasswordModal
+          isOpen={isChangePasswordOpen}
+          onClose={() => setIsChangePasswordOpen(false)}
         />
 
         <EditLinkModal

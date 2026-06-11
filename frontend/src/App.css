@@ -1388,6 +1388,29 @@ h4 {
   opacity: 1;
 }
 
+/* Password visibility toggle button */
+.password-toggle-btn {
+  position: absolute;
+  right: 0.65rem;
+  background: transparent;
+  border: none;
+  color: var(--text-muted);
+  cursor: pointer;
+  padding: 0.3rem;
+  border-radius: 6px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.2s ease;
+  opacity: 0.6;
+}
+
+.password-toggle-btn:hover {
+  opacity: 1;
+  color: var(--primary);
+  background: rgba(139, 92, 246, 0.06);
+}
+
 /* Modal Actions Footer */
 .modal-actions-footer {
   display: flex;

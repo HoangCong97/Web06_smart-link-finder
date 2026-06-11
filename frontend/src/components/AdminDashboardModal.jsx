@@ -349,6 +349,10 @@ const AdminDashboardModal = ({ isOpen, onClose }) => {
         text = 'Xóa Manager';
         className = 'badge-orange';
         break;
+      case 'CHANGE_PASSWORD':
+        text = 'Đổi mật khẩu';
+        className = 'badge-blue';
+        break;
       default:
         break;
     }
@@ -741,6 +745,7 @@ const AdminDashboardModal = ({ isOpen, onClose }) => {
                     <option value="CREATE_USER">Tạo Manager</option>
                     <option value="UPDATE_USER">Sửa Manager</option>
                     <option value="DELETE_USER">Xóa Manager</option>
+                    <option value="CHANGE_PASSWORD">Đổi mật khẩu</option>
                   </select>
                 </div>
 

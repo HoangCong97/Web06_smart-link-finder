@@ -654,6 +654,53 @@ app.delete('/api/users/:id', authenticateJWT, requireRole(['admin']), async (req
   }
 });
 
+// PUT /api/auth/change-password (Admin & Manager: tự đổi mật khẩu)
+app.put('/api/auth/change-password', authenticateJWT, requireRole(['admin', 'manager']), async (req, res) => {
+  const { currentPassword, newPassword } = req.body;
+
+  if (!currentPassword || !newPassword) {
+    return res.status(400).json({ error: 'Vui lòng cung cấp mật khẩu hiện tại và mật khẩu mới' });
+  }
+
+  if (newPassword.length < 6) {
+    return res.status(400).json({ error: 'Mật khẩu mới phải có ít nhất 6 ký tự' });
+  }
+
+  try {
+    // Lấy thông tin user hiện tại từ database
+    const { data: user, error: fetchError } = await supabase
+      .from('fl_users')
+      .select('*')
+      .eq('id', req.user.id)
+      .single();
+
+    if (fetchError || !user) {
+      return res.status(404).json({ error: 'Không tìm thấy tài khoản người dùng' });
+    }
+
+    // Xác minh mật khẩu hiện tại
+    const isMatch = await bcrypt.compare(currentPassword, user.password);
+    if (!isMatch) {
+      return res.status(401).json({ error: 'Mật khẩu hiện tại không chính xác' });
+    }
+
+    // Hash mật khẩu mới và cập nhật
+    const hashedNewPassword = await bcrypt.hash(newPassword, 10);
+    const { error: updateError } = await supabase
+      .from('fl_users')
+      .update({ password: hashedNewPassword })
+      .eq('id', req.user.id);
+
+    if (updateError) throw updateError;
+
+    await logAction('CHANGE_PASSWORD', req.user.username, `Đổi mật khẩu tài khoản thành công`);
+    res.json({ success: true, message: 'Đổi mật khẩu thành công' });
+  } catch (err) {
+    console.error('Lỗi đổi mật khẩu:', err);
+    res.status(500).json({ error: err.message || 'Lỗi máy chủ nội bộ' });
+  }
+});
+
 // --- Settings APIs ---
 
 // GET /api/settings (Public settings for frontend initialization)

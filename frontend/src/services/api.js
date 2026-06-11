@@ -92,6 +92,12 @@ export const api = {
       body: JSON.stringify({ username, password }),
     }),
 
+  changePassword: (currentPassword, newPassword) =>
+    request('/api/auth/change-password', {
+      method: 'PUT',
+      body: JSON.stringify({ currentPassword, newPassword }),
+    }),
+
   // --- User APIs (Admin) ---
   getUsers: () => request('/api/users'),
 
