@@ -45,7 +45,8 @@ let systemSettings = {
     maintenance_mode: false,
     log_retention_days: 30,
     default_search_limit: 9,
-    default_search_threshold: 0.3
+    default_search_threshold: 0.3,
+    show_priority_score: true
   }
 };
 
@@ -709,7 +710,8 @@ app.get('/api/settings', async (req, res) => {
     guest_permissions: systemSettings.permissions.guest,
     maintenance_mode: systemSettings.system.maintenance_mode,
     default_search_limit: systemSettings.system.default_search_limit,
-    default_search_threshold: systemSettings.system.default_search_threshold
+    default_search_threshold: systemSettings.system.default_search_threshold,
+    show_priority_score: systemSettings.system.show_priority_score !== undefined ? systemSettings.system.show_priority_score : true
   });
 });
 
@@ -762,7 +764,62 @@ app.put('/api/admin/settings', authenticateJWT, requireRole(['admin']), async (r
   }
 });
 
-// 1. Get all links sorted by priority tiers
+/**
+ * Tính điểm ưu tiên hiển thị động (Smart Score) cho liên kết
+ * @param {object} link 
+ * @param {number} clicks_3d 
+ * @param {number} clicks_30d 
+ * @returns {number}
+ */
+function calculatePriorityScore(link, clicks_3d = 0, clicks_30d = 0) {
+  let score = 0;
+
+  // 1. Ghim (is_pinned): +10000 điểm
+  if (link.is_pinned) {
+    score += 10000;
+  }
+
+  // 2. Lượt click (Popularity)
+  score += clicks_3d * 15;
+  score += clicks_30d * 2;
+
+  // 3. Độ mới (Recency)
+  const now = new Date();
+  const createdAt = new Date(link.created_at);
+  const diffCreatedMs = now - createdAt;
+  const diffCreatedHours = diffCreatedMs / (1000 * 60 * 60); // Đơn vị: giờ
+  if (diffCreatedHours >= 0 && diffCreatedHours <= 24) {
+    score += (24 - diffCreatedHours) * 2;
+  }
+
+  // 4. Hạn chót & Phạt quá hạn (Urgency & Expired)
+  if (link.deadline) {
+    const deadlineTime = new Date(link.deadline);
+    const diffDeadlineMs = deadlineTime - now;
+    const diffDeadlineHours = diffDeadlineMs / (1000 * 60 * 60); // Đơn vị: giờ (dương: còn hạn, âm: quá hạn)
+
+    if (diffDeadlineHours >= 0) {
+      // Chưa quá hạn
+      if (diffDeadlineHours <= 48) {
+        score += (48 - diffDeadlineHours) * 5;
+      } else {
+        score += 5;
+      }
+    } else {
+      // Đã quá hạn
+      const expiredHours = -diffDeadlineHours;
+      if (expiredHours <= 24) {
+        score -= expiredHours * 10;
+      } else {
+        score -= 240; // Phạt tối đa sau 24h
+      }
+    }
+  }
+
+  return Math.round(score * 100) / 100; // Làm tròn 2 chữ số thập phân
+}
+
+// 1. Get all links sorted by smart priority score
 app.get('/api/links', optionalJWT, maintenanceModeCheck, checkPermission('view_links'), async (req, res) => {
   try {
     // A. Lấy tất cả các liên kết từ Database
@@ -772,14 +829,14 @@ app.get('/api/links', optionalJWT, maintenanceModeCheck, checkPermission('view_l
 
     if (linksError) throw linksError;
 
-    // B. Lấy các clicks trong 3 ngày qua để tính toán độ hot
-    const threeDaysAgo = new Date();
-    threeDaysAgo.setDate(threeDaysAgo.getDate() - 3);
+    // B. Lấy các clicks trong 30 ngày qua để tính toán độ hot
+    const thirtyDaysAgo = new Date();
+    thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
 
     const { data: clicksData, error: clicksError } = await supabase
       .from('fl_link_clicks')
-      .select('link_id')
-      .gte('clicked_at', threeDaysAgo.toISOString());
+      .select('link_id, clicked_at')
+      .gte('clicked_at', thirtyDaysAgo.toISOString());
 
     // Nếu bảng fl_link_clicks chưa được tạo (lỗi chưa chạy migration), gán clicksData rỗng để không bị sập API
     const isTableMissing = clicksError && (
@@ -794,128 +851,44 @@ app.get('/api/links', optionalJWT, maintenanceModeCheck, checkPermission('view_l
       throw clicksError;
     }
 
-    const clicksMap = {};
+    const now = new Date();
+    const threeDaysAgo = new Date(now.getTime() - 3 * 24 * 60 * 60 * 1000);
+
+    const clicks3dMap = {};
+    const clicks30dMap = {};
+
     safeClicksData.forEach(row => {
-      clicksMap[row.link_id] = (clicksMap[row.link_id] || 0) + 1;
+      const clickedAt = new Date(row.clicked_at);
+      // Đếm click 30 ngày
+      clicks30dMap[row.link_id] = (clicks30dMap[row.link_id] || 0) + 1;
+      // Đếm click 3 ngày
+      if (clickedAt >= threeDaysAgo) {
+        clicks3dMap[row.link_id] = (clicks3dMap[row.link_id] || 0) + 1;
+      }
     });
 
-    // C. Phân chia Tiers và tính toán các điều kiện sắp xếp
-    const now = new Date();
-
-    const isWithinLastHour = (dateStr) => {
-      const d = new Date(dateStr);
-      return (now - d) <= 60 * 60 * 1000; // 1 giờ = 3,600,000 ms
-    };
-
-    const linksWithTiers = links.map(link => {
-      const clicks3d = clicksMap[link.id] || 0;
-      const totalClicks = link.click_count || 0;
-      let tier = 7; // Mặc định là Tier 7: Link không thời hạn và chưa click
-
-      // Tính toán điều kiện hết hạn trước để phục vụ Tier 1, Tier 4, Tier 5, Tier 8
-      let hasDeadline = false;
-      let isExpired = false;
-      let diffDays = 0;
-      let deadlineTime = null;
-
-      if (link.deadline) {
-        hasDeadline = true;
-        deadlineTime = new Date(link.deadline);
-        const diffTime = deadlineTime - now;
-        diffDays = diffTime / (1000 * 60 * 60 * 24);
-        isExpired = deadlineTime <= now;
-      }
-
-      // Phân bổ Tier
-      if (hasDeadline && !isExpired && diffDays <= 2) {
-        tier = 1; // Tier 1: Link sắp hết hạn (còn <= 2 ngày)
-      } else if (clicks3d > 0) {
-        tier = 2; // Tier 2: Link hot 3 ngày gần đây
-      } else if (isWithinLastHour(link.created_at)) {
-        tier = 3; // Tier 3: Link mới thêm trong 1 giờ
-      } else if (hasDeadline) {
-        if (!isExpired) {
-          tier = 5; // Tier 5: Link có thời hạn còn hạn dài (> 2 ngày)
-        } else {
-          // Đã hết hạn
-          const expiredTime = now - deadlineTime;
-          const expiredDays = expiredTime / (1000 * 60 * 60 * 24);
-          if (expiredDays <= 1) {
-            tier = 4; // Tier 4: Link mới hết hạn (<= 1 ngày)
-          } else {
-            tier = 8; // Tier 8: Link quá hạn (> 1 ngày)
-          }
-        }
-      } else {
-        // Không có deadline
-        if (totalClicks > 0) {
-          tier = 6; // Tier 6: Link click nhiều không thời hạn
-        } else {
-          tier = 7; // Tier 7: Link không thời hạn
-        }
-      }
-
+    // C. Tính toán điểm số ưu tiên cho từng liên kết
+    const linksWithScores = links.map(link => {
+      const c3d = clicks3dMap[link.id] || 0;
+      const c30d = clicks30dMap[link.id] || 0;
+      const score = calculatePriorityScore(link, c3d, c30d);
       return {
         ...link,
-        tier,
-        clicks_3d: clicks3d
+        priority_score: score,
+        clicks_3d: c3d,
+        clicks_30d: c30d
       };
     });
 
-    // D. Sắp xếp theo các tầng (Tier) và quy tắc sắp xếp phụ (Ghim lên trước tiên)
-    linksWithTiers.sort((a, b) => {
-      // Ưu tiên liên kết được ghim lên đầu tiên
-      if (a.is_pinned !== b.is_pinned) {
-        return a.is_pinned ? -1 : 1;
+    // D. Sắp xếp theo điểm số ưu tiên giảm dần, sau đó là ngày tạo giảm dần
+    linksWithScores.sort((a, b) => {
+      if (b.priority_score !== a.priority_score) {
+        return b.priority_score - a.priority_score;
       }
-
-      if (a.tier !== b.tier) {
-        return a.tier - b.tier; // Tier số nhỏ hơn xếp trước
-      }
-
-      // Sắp xếp phụ trong cùng một Tier
-      if (a.tier === 1) {
-        // Tier 1: Sắp hết hạn -> deadline tăng dần (gần hết hạn nhất lên trước)
-        return new Date(a.deadline) - new Date(b.deadline);
-      }
-      if (a.tier === 2) {
-        // Tier 2: Hot 3 ngày -> clicks_3d giảm dần, sau đó ngày tạo giảm dần
-        if (b.clicks_3d !== a.clicks_3d) {
-          return b.clicks_3d - a.clicks_3d;
-        }
-        return new Date(b.created_at) - new Date(a.created_at);
-      }
-      if (a.tier === 3) {
-        // Tier 3: Link mới thêm -> ngày tạo giảm dần
-        return new Date(b.created_at) - new Date(a.created_at);
-      }
-      if (a.tier === 4) {
-        // Tier 4: Mới hết hạn -> deadline giảm dần (mới hết hạn nhất lên trước)
-        return new Date(b.deadline) - new Date(a.deadline);
-      }
-      if (a.tier === 5) {
-        // Tier 5: Còn hạn dài -> deadline tăng dần (gần hết hạn nhất lên trước)
-        return new Date(a.deadline) - new Date(b.deadline);
-      }
-      if (a.tier === 6) {
-        // Tier 6: Click nhiều không hạn -> click_count giảm dần, sau đó ngày tạo giảm dần
-        if (b.click_count !== a.click_count) {
-          return b.click_count - a.click_count;
-        }
-        return new Date(b.created_at) - new Date(a.created_at);
-      }
-      if (a.tier === 7) {
-        // Tier 7: Không hạn -> ngày tạo giảm dần
-        return new Date(b.created_at) - new Date(a.created_at);
-      }
-      if (a.tier === 8) {
-        // Tier 8: Quá hạn -> deadline giảm dần (mới quá hạn nhất lên trước)
-        return new Date(b.deadline) - new Date(a.deadline);
-      }
-      return 0;
+      return new Date(b.created_at) - new Date(a.created_at);
     });
 
-    res.json(linksWithTiers);
+    res.json(linksWithScores);
   } catch (error) {
     console.error('Error fetching links:', error);
     res.status(500).json({ error: error.message || 'Internal server error' });
@@ -1171,8 +1144,89 @@ app.post('/api/search', optionalJWT, maintenanceModeCheck, checkPermission('sear
       }
     }
 
+    // 4. Tính toán priority_score cho các kết quả tìm kiếm
+    const matchedIds = combinedResults.map(item => item.id);
+    let clicks3dMap = {};
+    let clicks30dMap = {};
+    let fullLinksMap = {};
+
+    if (matchedIds.length > 0) {
+      const thirtyDaysAgo = new Date();
+      thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
+
+      // Lấy click logs
+      const { data: searchClicksData, error: searchClicksError } = await supabase
+        .from('fl_link_clicks')
+        .select('link_id, clicked_at')
+        .in('link_id', matchedIds)
+        .gte('clicked_at', thirtyDaysAgo.toISOString());
+
+      const isTableMissing = searchClicksError && (
+        searchClicksError.message.includes('relation "public.fl_link_clicks" does not exist') ||
+        searchClicksError.message.includes('fl_link_clicks') ||
+        searchClicksError.message.includes('schema cache') ||
+        searchClicksError.code === 'PGRST205'
+      );
+      const safeSearchClicksData = isTableMissing ? [] : searchClicksData || [];
+
+      const threeDaysAgo = new Date(Date.now() - 3 * 24 * 60 * 60 * 1000);
+      safeSearchClicksData.forEach(row => {
+        const clickedAt = new Date(row.clicked_at);
+        clicks30dMap[row.link_id] = (clicks30dMap[row.link_id] || 0) + 1;
+        if (clickedAt >= threeDaysAgo) {
+          clicks3dMap[row.link_id] = (clicks3dMap[row.link_id] || 0) + 1;
+        }
+      });
+
+      // Lấy thông tin bổ sung như created_at, is_pinned nếu thiếu
+      const { data: fullLinksData } = await supabase
+        .from('fl_links')
+        .select('id, created_at, is_pinned')
+        .in('id', matchedIds);
+
+      if (fullLinksData) {
+        fullLinksData.forEach(row => {
+          fullLinksMap[row.id] = row;
+        });
+      }
+    }
+
+    const resultsWithScores = combinedResults.map(item => {
+      const c3d = clicks3dMap[item.id] || 0;
+      const c30d = clicks30dMap[item.id] || 0;
+      const extra = fullLinksMap[item.id] || {};
+      
+      const mergedItem = {
+        ...item,
+        is_pinned: extra.is_pinned !== undefined ? extra.is_pinned : (item.is_pinned || false),
+        created_at: extra.created_at || item.created_at || new Date().toISOString(),
+      };
+
+      const score = calculatePriorityScore(mergedItem, c3d, c30d);
+      
+      return {
+        ...mergedItem,
+        priority_score: score,
+        clicks_3d: c3d,
+        clicks_30d: c30d
+      };
+    });
+
+    // 5. Sắp xếp theo similarity giảm dần, nếu bằng nhau thì xếp theo priority_score giảm dần
+    resultsWithScores.sort((a, b) => {
+      const simA = a.similarity !== undefined ? a.similarity : 0;
+      const simB = b.similarity !== undefined ? b.similarity : 0;
+      if (Math.abs(simB - simA) > 0.0001) {
+        return simB - simA;
+      }
+      if (b.priority_score !== a.priority_score) {
+        return b.priority_score - a.priority_score;
+      }
+      return new Date(b.created_at) - new Date(a.created_at);
+    });
+
     // Trả về danh sách đã cắt theo giới hạn matchLimit
-    res.json(combinedResults.slice(0, matchLimit));
+    res.json(resultsWithScores.slice(0, matchLimit));
   } catch (error) {
     console.error('Error searching links:', error);
     res.status(500).json({ error: error.message || 'Internal server error' });

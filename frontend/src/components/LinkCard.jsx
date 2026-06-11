@@ -1,12 +1,12 @@
 import React, { useState } from 'react';
-import { Trash2, ExternalLink, Calendar, Award, Edit2, Eye, Pin, Flame } from 'lucide-react';
+import { Trash2, ExternalLink, Calendar, Award, Edit2, Eye, Pin, Flame, Star } from 'lucide-react';
 import { getDomain, getDeadlineStatus } from '../utils/helpers';
 
-const LinkCard = ({ link, onDelete, onEdit, onPinToggle, onClickCard, onTrackClick, user, isSearchResult }) => {
+const LinkCard = ({ link, onDelete, onEdit, onPinToggle, onClickCard, onTrackClick, user, isSearchResult, showPriorityScore }) => {
   const [isDeleting, setIsDeleting] = useState(false);
   const [showConfirm, setShowConfirm] = useState(false);
 
-  const { id, url, title, deadline, similarity, click_count } = link;
+  const { id, url, title, deadline, similarity, click_count, priority_score } = link;
 
   const domain = getDomain(url);
   const deadlineStatus = getDeadlineStatus(deadline);
@@ -38,6 +38,14 @@ const LinkCard = ({ link, onDelete, onEdit, onPinToggle, onClickCard, onTrackCli
         <div className="similarity-badge">
           <Award size={14} />
           <span>{(similarity * 100).toFixed(1)}% khớp</span>
+        </div>
+      )}
+
+      {/* Priority Score badge for Admin only, rendered as a badge at the top-left */}
+      {user && user.role === 'admin' && showPriorityScore && priority_score !== undefined && (
+        <div className="priority-badge" title={`Điểm ưu tiên hiển thị: ${priority_score}đ`}>
+          <Star size={10} style={{ fill: 'currentColor' }} />
+          <span>{Math.round(priority_score)}đ</span>
         </div>
       )}
 

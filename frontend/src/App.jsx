@@ -28,7 +28,8 @@ function App() {
     guest_permissions: ["search_links", "view_links", "click_link"],
     maintenance_mode: false,
     default_search_limit: 9,
-    default_search_threshold: 0.3
+    default_search_threshold: 0.3,
+    show_priority_score: true
   });
 
   // Authentication & Modal States
@@ -170,25 +171,52 @@ function App() {
     }
   };
 
-  // Handle link updated
   const handleLinkUpdated = (updatedLink) => {
     setLinks((prev) => {
-      const updated = prev.map((item) => item.id === updatedLink.id ? updatedLink : item);
-      return [...updated].sort((a, b) => {
-        if (a.is_pinned !== b.is_pinned) {
-          return a.is_pinned ? -1 : 1;
+      const updated = prev.map((item) => {
+        if (item.id === updatedLink.id) {
+          let newScore = item.priority_score;
+          if (item.is_pinned !== updatedLink.is_pinned && newScore !== undefined) {
+            newScore = updatedLink.is_pinned ? newScore + 10000 : newScore - 10000;
+          }
+          return { ...updatedLink, priority_score: newScore };
         }
-        return 0;
+        return item;
+      });
+      return [...updated].sort((a, b) => {
+        const scoreA = a.priority_score !== undefined ? a.priority_score : 0;
+        const scoreB = b.priority_score !== undefined ? b.priority_score : 0;
+        if (scoreB !== scoreA) {
+          return scoreB - scoreA;
+        }
+        return new Date(b.created_at) - new Date(a.created_at);
       });
     });
     if (searchResults) {
       setSearchResults((prev) => {
-        const updated = prev.map((item) => item.id === updatedLink.id ? updatedLink : item);
-        return [...updated].sort((a, b) => {
-          if (a.is_pinned !== b.is_pinned) {
-            return a.is_pinned ? -1 : 1;
+        const updated = prev.map((item) => {
+          if (item.id === updatedLink.id) {
+            let newScore = item.priority_score;
+            if (item.is_pinned !== updatedLink.is_pinned && newScore !== undefined) {
+              newScore = updatedLink.is_pinned ? newScore + 10000 : newScore - 10000;
+            }
+            return { ...updatedLink, priority_score: newScore };
           }
-          return 0;
+          return item;
+        });
+        return [...updated].sort((a, b) => {
+          // Với kết quả tìm kiếm, ưu tiên similarity trước
+          const simA = a.similarity !== undefined ? a.similarity : 0;
+          const simB = b.similarity !== undefined ? b.similarity : 0;
+          if (Math.abs(simB - simA) > 0.0001) {
+            return simB - simA;
+          }
+          const scoreA = a.priority_score !== undefined ? a.priority_score : 0;
+          const scoreB = b.priority_score !== undefined ? b.priority_score : 0;
+          if (scoreB !== scoreA) {
+            return scoreB - scoreA;
+          }
+          return new Date(b.created_at) - new Date(a.created_at);
         });
       });
     }
@@ -542,6 +570,7 @@ function App() {
                       onTrackClick={handleLinkClick}
                       user={user}
                       isSearchResult={isSearchingActive}
+                      showPriorityScore={publicSettings.show_priority_score}
                     />
                   </div>
                 ))}

@@ -892,6 +892,25 @@ h4 {
   gap: 0.25rem;
   box-shadow: 0 4px 10px rgba(139, 92, 246, 0.2);
   border: 1px solid rgba(255, 255, 255, 0.2);
+  z-index: 10;
+}
+
+.priority-badge {
+  position: absolute;
+  top: -0.55rem;
+  left: 0.75rem;
+  padding: 0.15rem 0.45rem;
+  border-radius: 50px;
+  background: linear-gradient(135deg, #a855f7 0%, #d8b4fe 100%);
+  color: white;
+  font-size: 0.65rem;
+  font-weight: 700;
+  display: flex;
+  align-items: center;
+  gap: 0.15rem;
+  box-shadow: 0 4px 8px rgba(168, 85, 247, 0.15);
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  z-index: 10;
 }
 
 .views-badge {

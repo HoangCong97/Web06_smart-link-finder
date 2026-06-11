@@ -1090,6 +1090,21 @@ const AdminDashboardModal = ({ isOpen, onClose }) => {
                         </label>
                       </div>
 
+                      <div className="form-group flex-center" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', margin: '0.75rem 0' }}>
+                        <label className="form-label" style={{ marginBottom: 0, fontWeight: 700, color: 'var(--text-primary)' }}>Hiện điểm ưu tiên cho Admin</label>
+                        <label className="toggle-switch-container">
+                          <input 
+                            type="checkbox" 
+                            checked={settingsData.system?.show_priority_score !== undefined ? settingsData.system.show_priority_score : true}
+                            onChange={(e) => setSettingsData(prev => ({
+                              ...prev,
+                              system: { ...prev.system, show_priority_score: e.target.checked }
+                            }))}
+                          />
+                          <span className="toggle-slider"></span>
+                        </label>
+                      </div>
+
                       <div className="form-group" style={{ display: 'flex', flexDirection: 'column', gap: '4px', margin: '0.8rem 0' }}>
                         <span className="text-muted" style={{ fontSize: '0.88rem' }}>Giữ nhật ký (ngày):</span>
                         <input 
