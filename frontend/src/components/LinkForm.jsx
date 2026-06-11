@@ -43,7 +43,7 @@ const LinkForm = ({ onLinkAdded }) => {
         url,
         title: title || undefined,
         content: content || undefined,
-        deadline: deadline || undefined
+        deadline: deadline ? new Date(deadline).toISOString() : undefined
       });
 
       // Reset manual form

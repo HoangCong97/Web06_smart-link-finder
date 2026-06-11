@@ -65,7 +65,7 @@ const EditLinkModal = ({ isOpen, onClose, link, onLinkUpdated }) => {
         url,
         title,
         content: content || '',
-        deadline: deadline || null,
+        deadline: deadline ? new Date(deadline).toISOString() : null,
         is_pinned: isPinned
       });
 
