@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Trash2, ExternalLink, Calendar, Award, Edit2, Eye, Pin } from 'lucide-react';
+import { Trash2, ExternalLink, Calendar, Award, Edit2, Eye, Pin, Flame } from 'lucide-react';
 import { getDomain, getDeadlineStatus } from '../utils/helpers';
 
 const LinkCard = ({ link, onDelete, onEdit, onPinToggle, onClickCard, onTrackClick, user, isSearchResult }) => {
@@ -10,6 +10,10 @@ const LinkCard = ({ link, onDelete, onEdit, onPinToggle, onClickCard, onTrackCli
 
   const domain = getDomain(url);
   const deadlineStatus = getDeadlineStatus(deadline);
+
+  const isUrgent = deadlineStatus && deadlineStatus.type === 'critical';
+  const isHot = click_count !== undefined && click_count >= 10;
+  const glowClass = isUrgent ? 'glow-pulse-urgent' : isHot ? 'glow-pulse-hot' : '';
 
   const handleDeleteClick = (e) => {
     e.stopPropagation();
@@ -25,7 +29,7 @@ const LinkCard = ({ link, onDelete, onEdit, onPinToggle, onClickCard, onTrackCli
 
   return (
     <div 
-      className={`glass-panel link-card hover-scale ${isDeleting ? 'deleting' : ''}`}
+      className={`glass-panel link-card hover-scale ${isDeleting ? 'deleting' : ''} ${glowClass}`}
       onClick={() => onClickCard && onClickCard(link)}
       style={{ cursor: 'pointer' }}
     >
@@ -37,10 +41,17 @@ const LinkCard = ({ link, onDelete, onEdit, onPinToggle, onClickCard, onTrackCli
         </div>
       )}
 
-      {/* Click / View count badge (Only for Admin & Manager) */}
-      {user && (user.role === 'admin' || user.role === 'manager') && click_count !== undefined && click_count > 0 && (
-        <div className="views-badge" title={`${click_count} lượt truy cập`}>
-          <Eye size={13} />
+      {/* Click / View count badge (Visible to all users, special Flame styling for hot links) */}
+      {click_count !== undefined && click_count > 0 && (
+        <div 
+          className={`views-badge ${isHot ? 'hot-badge' : ''}`} 
+          title={isHot ? `${click_count} lượt truy cập - Liên kết cực kỳ HOT!` : `${click_count} lượt truy cập`}
+        >
+          {isHot ? (
+            <Flame size={13} style={{ fill: 'currentColor', color: '#ea580c' }} />
+          ) : (
+            <Eye size={13} />
+          )}
           <span>{click_count}</span>
         </div>
       )}
@@ -53,7 +64,7 @@ const LinkCard = ({ link, onDelete, onEdit, onPinToggle, onClickCard, onTrackCli
           display: 'flex',
           alignItems: 'center',
           gap: '0.4rem',
-          ...(user && (user.role === 'admin' || user.role === 'manager') && click_count > 0 ? { paddingRight: '3.2rem' } : {})
+          ...(click_count > 0 ? { paddingRight: '3.2rem' } : {})
         }}
       >
         {link.is_pinned && (
