@@ -168,9 +168,42 @@ function App() {
 
   // Handle link updated
   const handleLinkUpdated = (updatedLink) => {
-    setLinks((prev) => prev.map((item) => item.id === updatedLink.id ? updatedLink : item));
+    setLinks((prev) => {
+      const updated = prev.map((item) => item.id === updatedLink.id ? updatedLink : item);
+      return [...updated].sort((a, b) => {
+        if (a.is_pinned !== b.is_pinned) {
+          return a.is_pinned ? -1 : 1;
+        }
+        return 0;
+      });
+    });
     if (searchResults) {
-      setSearchResults((prev) => prev.map((item) => item.id === updatedLink.id ? updatedLink : item));
+      setSearchResults((prev) => {
+        const updated = prev.map((item) => item.id === updatedLink.id ? updatedLink : item);
+        return [...updated].sort((a, b) => {
+          if (a.is_pinned !== b.is_pinned) {
+            return a.is_pinned ? -1 : 1;
+          }
+          return 0;
+        });
+      });
+    }
+    // Cập nhật ngay lập tức nếu đang mở xem chi tiết
+    setViewingLink((prev) => 
+      prev && prev.id === updatedLink.id ? updatedLink : prev
+    );
+  };
+
+  // Handle toggling pin status
+  const handlePinToggle = async (link) => {
+    try {
+      const updatedLink = await api.updateLink(link.id, {
+        is_pinned: !link.is_pinned
+      });
+      handleLinkUpdated(updatedLink);
+    } catch (err) {
+      console.error('Lỗi khi ghim/bỏ ghim liên kết:', err);
+      alert(err.message || 'Không thể thực hiện ghim/bỏ ghim liên kết');
     }
   };
 
@@ -488,6 +521,7 @@ function App() {
                       link={link}
                       onDelete={handleDeleteLink}
                       onEdit={(l) => setEditingLink(l)}
+                      onPinToggle={handlePinToggle}
                       onClickCard={(l) => setViewingLink(l)}
                       onTrackClick={handleLinkClick}
                       user={user}

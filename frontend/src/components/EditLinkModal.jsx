@@ -8,6 +8,7 @@ const EditLinkModal = ({ isOpen, onClose, link, onLinkUpdated }) => {
   const [title, setTitle] = useState('');
   const [content, setContent] = useState('');
   const [deadline, setDeadline] = useState('');
+  const [isPinned, setIsPinned] = useState(false);
 
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
@@ -17,6 +18,7 @@ const EditLinkModal = ({ isOpen, onClose, link, onLinkUpdated }) => {
       setUrl(link.url || '');
       setTitle(link.title || '');
       setContent(link.content || '');
+      setIsPinned(link.is_pinned || false);
       // Format deadline date to YYYY-MM-DDTHH:MM for input element
       if (link.deadline) {
         const d = new Date(link.deadline);
@@ -63,7 +65,8 @@ const EditLinkModal = ({ isOpen, onClose, link, onLinkUpdated }) => {
         url,
         title,
         content: content || '',
-        deadline: deadline || null
+        deadline: deadline || null,
+        is_pinned: isPinned
       });
 
       triggerConfetti();
@@ -159,6 +162,21 @@ const EditLinkModal = ({ isOpen, onClose, link, onLinkUpdated }) => {
             />
           </div>
 
+          {/* Pinned Option */}
+          <div className="form-group" style={{ flexDirection: 'row', alignItems: 'center', gap: '0.5rem', cursor: 'pointer' }}>
+            <input
+              type="checkbox"
+              id="edit-is-pinned"
+              checked={isPinned}
+              onChange={(e) => setIsPinned(e.target.checked)}
+              disabled={loading}
+              style={{ width: '18px', height: '18px', cursor: 'pointer', accentColor: 'var(--primary)' }}
+            />
+            <label htmlFor="edit-is-pinned" className="form-label" style={{ textTransform: 'none', fontSize: '0.88rem', color: 'var(--text-primary)', cursor: 'pointer', margin: 0 }}>
+              Ghim liên kết lên đầu trang
+            </label>
+          </div>
+ 
           {/* Submit Buttons */}
           <div className="modal-actions-footer mt-4">
             <button

@@ -6,6 +6,7 @@ create table public.FL_links (
     content text, -- Mô tả ngắn (AI đã chuẩn hóa)
     deadline timestamp with time zone, -- Hạn chót (Định dạng timestamp, có thể để trống)
     embedding vector (768), -- Ô lưu mảng 768 số của Google text-embedding-04
+    is_pinned boolean default false, -- Trạng thái ghim
     created_at timestamp with time zone default timezone ('utc'::text, now()) not null
 );
 
@@ -70,6 +71,7 @@ RETURNS TABLE (
   content text,
   deadline timestamp with time zone,
   click_count int,
+  is_pinned boolean,
   similarity float
 )
 LANGUAGE sql STABLE
@@ -81,6 +83,7 @@ AS $$
     fl_links.content,
     fl_links.deadline,
     fl_links.click_count,
+    fl_links.is_pinned,
     1 - (fl_links.embedding <=> query_embedding) AS similarity
   FROM fl_links
   WHERE 1 - (fl_links.embedding <=> query_embedding) > match_threshold
@@ -101,3 +104,6 @@ INSERT INTO public.fl_settings (key, value) VALUES
 ('permissions', '{"guest": ["search_links", "view_links", "click_link"], "manager": ["create_link", "edit_link", "delete_link", "analyze_link"]}'::jsonb),
 ('system', '{"maintenance_mode": false, "log_retention_days": 30, "default_search_limit": 9, "default_search_threshold": 0.3}'::jsonb)
 ON CONFLICT (key) DO NOTHING;
+
+-- 3. Thêm cột is_pinned vào bảng fl_links nếu chưa có
+ALTER TABLE public.fl_links ADD COLUMN IF NOT EXISTS is_pinned boolean DEFAULT false;

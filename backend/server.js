@@ -721,7 +721,7 @@ app.get('/api/links', optionalJWT, maintenanceModeCheck, checkPermission('view_l
     // A. Lấy tất cả các liên kết từ Database
     const { data: links, error: linksError } = await supabase
       .from('fl_links')
-      .select('id, url, title, content, deadline, click_count, created_at');
+      .select('id, url, title, content, deadline, click_count, created_at, is_pinned');
 
     if (linksError) throw linksError;
 
@@ -815,8 +815,13 @@ app.get('/api/links', optionalJWT, maintenanceModeCheck, checkPermission('view_l
       };
     });
 
-    // D. Sắp xếp theo các tầng (Tier) và quy tắc sắp xếp phụ
+    // D. Sắp xếp theo các tầng (Tier) và quy tắc sắp xếp phụ (Ghim lên trước tiên)
     linksWithTiers.sort((a, b) => {
+      // Ưu tiên liên kết được ghim lên đầu tiên
+      if (a.is_pinned !== b.is_pinned) {
+        return a.is_pinned ? -1 : 1;
+      }
+
       if (a.tier !== b.tier) {
         return a.tier - b.tier; // Tier số nhỏ hơn xếp trước
       }
@@ -911,7 +916,7 @@ app.post('/api/links', authenticateJWT, maintenanceModeCheck, checkPermission('c
           embedding: embedding
         }
       ])
-      .select('id, url, title, content, deadline, click_count, created_at');
+      .select('id, url, title, content, deadline, click_count, created_at, is_pinned');
 
     if (error) throw error;
     await logAction('CREATE_LINK', req.user.username, `Thêm liên kết mới: "${targetTitle}" (${url})`);
@@ -1026,7 +1031,7 @@ Text to analyze:
           embedding: embedding
         }
       ])
-      .select('id, url, title, content, deadline, click_count, created_at');
+      .select('id, url, title, content, deadline, click_count, created_at, is_pinned');
 
     if (error) throw error;
     await logAction('CREATE_LINK', req.user.username, `Thêm liên kết trích xuất từ AI: "${titleToEmbed}" (${parsed.url})`);
@@ -1059,7 +1064,7 @@ app.post('/api/search', optionalJWT, maintenanceModeCheck, checkPermission('sear
       console.log(`Executing keyword FTS for query: "${safeQuery}"`);
       const { data: ftsData, error: ftsError } = await supabase
         .from('fl_links')
-        .select('id, url, title, content, deadline, click_count, created_at')
+        .select('id, url, title, content, deadline, click_count, created_at, is_pinned')
         .or(`title.ilike.%${safeQuery}%,content.ilike.%${safeQuery}%,url.ilike.%${safeQuery}%`)
         .limit(matchLimit);
 
@@ -1087,7 +1092,26 @@ app.post('/api/search', optionalJWT, maintenanceModeCheck, checkPermission('sear
     });
 
     if (vectorError) throw vectorError;
-    const vectorResults = vectorData || [];
+    
+    // Áp dụng fallback lấy is_pinned từ table nếu RPC match_links chưa được nâng cấp chữ ký trả về
+    let vectorResults = vectorData || [];
+    if (vectorResults.length > 0 && vectorResults[0].is_pinned === undefined) {
+      const vectorIds = vectorResults.map(item => item.id);
+      const { data: pinData } = await supabase
+        .from('fl_links')
+        .select('id, is_pinned')
+        .in('id', vectorIds);
+      if (pinData) {
+        const pinMap = {};
+        pinData.forEach(row => {
+          pinMap[row.id] = row.is_pinned;
+        });
+        vectorResults = vectorResults.map(item => ({
+          ...item,
+          is_pinned: pinMap[item.id] || false
+        }));
+      }
+    }
 
     // 3. Gộp kết quả và Loại bỏ trùng lặp (FTS ưu tiên 1, Vector ưu tiên 2)
     const combinedResults = [...ftsResults];
@@ -1130,7 +1154,7 @@ app.delete('/api/links/:id', authenticateJWT, maintenanceModeCheck, checkPermiss
 // 4.5. Update a link (Edit post/link)
 app.put('/api/links/:id', authenticateJWT, maintenanceModeCheck, checkPermission('edit_link'), async (req, res) => {
   const { id } = req.params;
-  const { url, title, content, deadline } = req.body;
+  const { url, title, content, deadline, is_pinned } = req.body;
 
   try {
     // Check if link exists
@@ -1148,6 +1172,7 @@ app.put('/api/links/:id', authenticateJWT, maintenanceModeCheck, checkPermission
     if (url !== undefined) updateData.url = url;
     if (content !== undefined) updateData.content = content;
     if (deadline !== undefined) updateData.deadline = deadline || null;
+    if (is_pinned !== undefined) updateData.is_pinned = is_pinned;
 
     if (title !== undefined && title !== existing.title) {
       updateData.title = title;
@@ -1160,7 +1185,7 @@ app.put('/api/links/:id', authenticateJWT, maintenanceModeCheck, checkPermission
       .from('fl_links')
       .update(updateData)
       .eq('id', id)
-      .select('id, url, title, content, deadline, click_count, created_at');
+      .select('id, url, title, content, deadline, click_count, created_at, is_pinned');
 
     if (error) throw error;
     await logAction('UPDATE_LINK', req.user.username, `Cập nhật liên kết ID: ${id}. Tiêu đề: "${title || existing.title}"`);

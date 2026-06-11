@@ -1007,6 +1007,50 @@ h4 {
   background: rgba(239, 68, 68, 0.08);
 }
 
+.edit-icon-btn {
+  padding: 0.35rem;
+  border-radius: 8px;
+  border: none;
+  background: transparent;
+  color: var(--primary);
+  opacity: 0.8;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.edit-icon-btn:hover {
+  opacity: 1;
+  background: rgba(139, 92, 246, 0.08);
+}
+
+.pin-icon-btn {
+  padding: 0.35rem;
+  border-radius: 8px;
+  border: none;
+  background: transparent;
+  color: var(--text-muted);
+  opacity: 0.8;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.pin-icon-btn:hover {
+  opacity: 1;
+  color: var(--warning);
+  background: rgba(245, 158, 11, 0.08);
+}
+
+.pin-icon-btn.active {
+  color: var(--warning);
+  opacity: 1;
+}
+
 .confirm-delete {
   display: flex;
   align-items: center;

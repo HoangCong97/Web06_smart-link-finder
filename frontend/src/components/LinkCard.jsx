@@ -1,8 +1,8 @@
 import React, { useState } from 'react';
-import { Trash2, ExternalLink, Calendar, Award, Edit2, Eye } from 'lucide-react';
+import { Trash2, ExternalLink, Calendar, Award, Edit2, Eye, Pin } from 'lucide-react';
 import { getDomain, getDeadlineStatus } from '../utils/helpers';
 
-const LinkCard = ({ link, onDelete, onEdit, onClickCard, onTrackClick, user, isSearchResult }) => {
+const LinkCard = ({ link, onDelete, onEdit, onPinToggle, onClickCard, onTrackClick, user, isSearchResult }) => {
   const [isDeleting, setIsDeleting] = useState(false);
   const [showConfirm, setShowConfirm] = useState(false);
 
@@ -49,9 +49,27 @@ const LinkCard = ({ link, onDelete, onEdit, onClickCard, onTrackClick, user, isS
       <p 
         className="card-title" 
         title={title || url}
-        style={user && (user.role === 'admin' || user.role === 'manager') && click_count > 0 ? { paddingRight: '3.2rem' } : {}}
+        style={{
+          display: 'flex',
+          alignItems: 'center',
+          gap: '0.4rem',
+          ...(user && (user.role === 'admin' || user.role === 'manager') && click_count > 0 ? { paddingRight: '3.2rem' } : {})
+        }}
       >
-        {title || url}
+        {link.is_pinned && (
+          <Pin 
+            size={14} 
+            style={{ 
+              transform: 'rotate(45deg)', 
+              fill: 'currentColor', 
+              color: 'var(--warning)',
+              flexShrink: 0
+            }} 
+          />
+        )}
+        <span style={{ textOverflow: 'ellipsis', overflow: 'hidden', whiteSpace: 'nowrap', flexGrow: 1 }}>
+          {title || url}
+        </span>
       </p>
 
       {/* Card Metadata Row */}
@@ -104,6 +122,16 @@ const LinkCard = ({ link, onDelete, onEdit, onClickCard, onTrackClick, user, isS
                 </div>
               ) : (
                 <div className="flex-center gap-1">
+                  <button
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      onPinToggle && onPinToggle(link);
+                    }}
+                    className={`pin-icon-btn ${link.is_pinned ? 'active' : ''}`}
+                    title={link.is_pinned ? "Bỏ ghim liên kết" : "Ghim liên kết"}
+                  >
+                    <Pin size={16} style={link.is_pinned ? { transform: 'rotate(45deg)', fill: 'currentColor' } : { transform: 'rotate(0deg)' }} />
+                  </button>
                   <button
                     onClick={(e) => {
                       e.stopPropagation();
